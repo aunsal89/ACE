@@ -3,9 +3,10 @@ import { getCollection } from 'astro:content';
 import { marked } from 'marked';
 
 const cvCollection = await getCollection('cv');
-// We expect one file
-const cv = cvCollection[0];
-const htmlContent = marked.parse(cv?.body || '') as string;
+const experience = cvCollection.find(e => e.id.toLowerCase() === 'experience');
+// Strip the leading "# Professional Experience" heading — the section already has its own title.
+const experienceBody = (experience?.body || '').replace(/^#\s+.*\n+/, '');
+const htmlContent = marked.parse(experienceBody) as string;
 ---
 
 <section id="experience" class="py-24 max-w-4xl mx-auto px-6 relative">

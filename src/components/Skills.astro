@@ -1,0 +1,29 @@
+---
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+
+const skillsCollection = await getCollection('skills');
+const toolbox = skillsCollection.find(s => s.id === 'Toolbox') ?? skillsCollection[0];
+const htmlContent = marked.parse(toolbox?.body || '') as string;
+---
+
+<section id="skills" class="py-24 max-w-6xl mx-auto px-6 relative">
+  <div class="space-y-4 mb-12">
+    <h2 class="text-3xl md:text-5xl font-bold text-white tracking-tight">Skills</h2>
+    <p class="text-slate-400 max-w-2xl text-lg">
+      A consolidated view of the technologies, standards, and methodologies I operate across — from safety-critical embedded systems to full-cycle product engineering.
+    </p>
+  </div>
+
+  <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 md:p-10 shadow-xl backdrop-blur-sm overflow-x-auto">
+    <div
+      class="prose prose-invert prose-slate max-w-none
+             prose-headings:hidden
+             prose-table:w-full prose-table:border-collapse
+             prose-th:bg-slate-800 prose-th:text-amber-400 prose-th:text-left prose-th:p-4 prose-th:border prose-th:border-slate-700
+             prose-td:p-4 prose-td:border prose-td:border-slate-800 prose-td:align-top
+             prose-strong:text-amber-400"
+      set:html={htmlContent}
+    />
+  </div>
+</section>

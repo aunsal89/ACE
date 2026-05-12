@@ -9,7 +9,12 @@ const cv = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/cv" })
 });
 
+const skills = defineCollection({
+  loader: glob({ pattern: "**/*.md", base: "./src/content/skills" })
+});
+
 export const collections = {
   projects,
   cv,
+  skills,
 };
