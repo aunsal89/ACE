@@ -1,0 +1,25 @@
+---
+import { getCollection } from 'astro:content';
+import { marked } from 'marked';
+import VentureTabs from './VentureTabs';
+
+// Fetch the projects collection
+const projects = await getCollection('projects');
+
+// Process markdown body to HTML string
+const processedProjects = projects.map(p => ({
+  id: p.id,
+  body: marked.parse(p.body || '') as string
+}));
+---
+
+<section id="ventures" class="py-24 relative max-w-6xl mx-auto px-6">
+  <div class="space-y-4 mb-12">
+    <h2 class="text-3xl md:text-5xl font-bold text-white tracking-tight">Independent Ventures</h2>
+    <p class="text-slate-400 max-w-2xl text-lg">
+      Products conceived, architected, built, and operated entirely as solo ventures. Every product, business, infrastructure, and operational decision is owned by me.
+    </p>
+  </div>
+  
+  <VentureTabs client:load projects={processedProjects} />
+</section>
