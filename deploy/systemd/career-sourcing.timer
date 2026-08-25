@@ -1,0 +1,21 @@
+[Unit]
+Description=Run Career Engine Autonomous Sourcing Pipeline Daily
+Documentation=https://github.com/aunsal89/Portfolio
+Requires=career-sourcing.service
+
+[Timer]
+Unit=career-sourcing.service
+# Schedule daily trigger at 08:00 AM (local host time)
+OnCalendar=*-*-* 08:00:00
+
+# Catch-up resilience: triggers immediately upon boot if host was down during schedule
+Persistent=true
+
+# Thundering herd protection & network jitter (random delay up to 5 minutes)
+RandomizedDelaySec=300
+
+# Accuracy window within 1 minute
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

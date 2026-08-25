@@ -228,9 +228,64 @@ def cmd_test_dedup(args: argparse.Namespace) -> None:
     console.print(table)
 
 
+def cmd_pipeline(args: argparse.Namespace) -> None:
+    """Execute end-to-end career sourcing, scoring, and application drafting pipeline."""
+    config = load_engine_config()
+    tenant_mgr = TenantManager(config)
+
+    if getattr(args, "all_tenants", False):
+        tenant_ids = tenant_mgr.list_available_tenants()
+    elif getattr(args, "tenant_id", None):
+        tenant_ids = [args.tenant_id]
+    else:
+        tenant_ids = [config.multi_tenancy.active_tenant]
+
+    console.print(Panel(
+        f"[bold cyan]Career Engine Autonomous Pipeline[/bold cyan]\n"
+        f"Processing {len(tenant_ids)} tenant(s): {', '.join(tenant_ids)}\n"
+        f"Database: {config.database.db_path}\n"
+        f"Inbox: {config.engine.inbox_dir}",
+        title="Pipeline Execution",
+        border_style="cyan"
+    ))
+
+    for tid in tenant_ids:
+        tenant = tenant_mgr.get_tenant(tid)
+        console.print(f"\n[bold yellow]>>> Processing Tenant: {tenant.name} ({tenant.tenant_id})[/bold yellow]")
+
+        # Phase 1: Sourcing
+        console.print("[bold blue]1. Running Multi-Channel Sourcing Pipeline...[/bold blue]")
+        sourcing_mgr = SourcingManager(config=config, tenant=tenant)
+        sourcing_mgr.run_sourcing_pipeline(scraper_name=getattr(args, "scraper", None), dry_run=getattr(args, "dry_run", False))
+
+        if getattr(args, "dry_run", False):
+            console.print("[yellow]Dry-run enabled: skipping scoring and drafting.[/yellow]")
+            continue
+
+        # Phase 2: Scoring
+        console.print("[bold blue]2. Running Opportunity Scoring Engine...[/bold blue]")
+        scorer = OpportunityScorer(config=config, tenant=tenant)
+        scorer.run_scoring_batch(auto_queue=True)
+
+        # Phase 3: Drafting
+        console.print("[bold blue]3. Drafting Tailored Application Packages into /inbox/...[/bold blue]")
+        drafter = ApplicationGenerator(config=config, tenant=tenant)
+        drafter.draft_queued_jobs()
+
+    console.print("\n[bold green]✓ End-to-End Pipeline Execution Finished.[/bold green]")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Career Engine CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # pipeline (full automated run)
+    p_pipe = subparsers.add_parser("pipeline", help="Run full sourcing, scoring, and drafting pipeline")
+    p_pipe.add_argument("--tenant-id", type=str, help="Specific tenant ID (defaults to active tenant)")
+    p_pipe.add_argument("--all-tenants", action="store_true", help="Process all available tenants sequentially")
+    p_pipe.add_argument("--scraper", type=str, choices=list(SCRAPER_REGISTRY.keys()), help="Run specific scraper")
+    p_pipe.add_argument("--dry-run", action="store_true", help="Run sourcing dry-run without persistence/scoring")
+    p_pipe.set_defaults(func=cmd_pipeline)
 
     # init-db
     p_init = subparsers.add_parser("init-db", help="Initialize database schema")

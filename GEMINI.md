@@ -164,7 +164,10 @@ portfolio/
   * Multi-track fit scoring against compensation and location filters.
   * LLM-driven resume and cover letter drafting pipeline outputting to `/inbox/`.
   * Markdown-to-PDF formatting integration.
-* [ ] **Phase 5: AURA Yield Integration & Production Hardening**
-  * Dual-market data pipeline (crypto + equity yields) for `auratrading.org`.
-  * `systemd` services / timer triggers on `vsmlnx`.
-  * Multi-tenant packaging documentation.
+* [x] **Phase 5: Production Hardening & Automation Infrastructure**
+  * Systemd service (`career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, and security sandboxing.
+  * Systemd timer (`career-sourcing.timer`) configured for daily 08:00 AM trigger with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
+  * End-to-end `pipeline` CLI subcommand implemented for single or multi-tenant batch sourcing, scoring, and drafting.
+  * Authoritative multi-tenant SaaS architecture blueprint documented at `docs/MULTI_TENANT_ARCHITECTURE.md`.
+  * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
+
