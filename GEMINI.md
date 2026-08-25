@@ -124,6 +124,9 @@ portfolio/
     ├── run.py                 # CLI executable entry point
     ├── config/                # config.yaml & tenants/aunsal/profile.yaml
     ├── data/                  # SQLite database storage (career_engine.db)
+    ├── deploy/                # Systemd service & timer unit templates
+    │   └── systemd/           # career-sourcing.service & career-sourcing.timer
+    ├── docs/                  # Architecture specifications (MULTI_TENANT_ARCHITECTURE.md)
     ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
     ├── src/
     │   ├── sourcing/          # Google Jobs, LinkedIn Apify, Baykar, Aselsan, etc.
@@ -165,9 +168,10 @@ portfolio/
   * LLM-driven resume and cover letter drafting pipeline outputting to `/inbox/`.
   * Markdown-to-PDF formatting integration.
 * [x] **Phase 5: Production Hardening & Automation Infrastructure**
-  * Systemd service (`career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, and security sandboxing.
-  * Systemd timer (`career-sourcing.timer`) configured for daily 08:00 AM trigger with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
+  * Systemd service (`deploy/systemd/career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, and security sandboxing.
+  * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for daily 08:00 AM trigger with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
   * End-to-end `pipeline` CLI subcommand implemented for single or multi-tenant batch sourcing, scoring, and drafting.
-  * Authoritative multi-tenant SaaS architecture blueprint documented at `docs/MULTI_TENANT_ARCHITECTURE.md`.
+  * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
+
 
