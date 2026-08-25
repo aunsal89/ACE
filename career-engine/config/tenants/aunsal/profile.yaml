@@ -1,0 +1,131 @@
+tenant_id: aunsal
+name: "Ahmet Halit \xDCnsal"
+email: ahmethalitunsal@gmail.com
+phone: +90 (553) 482 72 89
+location_current: Ankara, Turkey
+links:
+  website: https://www.ahmethalitunsal.com
+  github: https://github.com/aunsal89
+  linkedin: https://www.linkedin.com/in/ahmet-halit-unsal/
+  aura_showcase: https://www.auratrading.org/
+  edutrace_showcase: https://edutrace.net
+sources_of_truth:
+  cv_markdown: /home/nsl/Portfolio/src/content/cv/Experience.md
+  education_markdown: /home/nsl/Portfolio/src/content/cv/Education.md
+  skills_toolbox: /home/nsl/Portfolio/src/content/skills/Toolbox.md
+  portfolio_root: /home/nsl/Portfolio
+tracks:
+  track_a:
+    name: Embedded Software Leadership / Directorship
+    enabled: true
+    target_titles:
+    - Embedded Software Director
+    - Head of Embedded Software
+    - Embedded Software Engineering Manager
+    - Lead Embedded Systems Architect
+    - Director of Powertrain Software
+    - Motor Control Systems Lead
+    - Chief Embedded Systems Engineer
+    - Head of Systems & Software Engineering
+    target_sectors:
+    - Defense Electronics & Unmanned Systems
+    - Automotive & EV Powertrains
+    - Aerospace Avionics & Flight Control
+    target_locations:
+    - Istanbul, Turkey
+    - Ankara, Turkey
+    compensation:
+      min_monthly_net_usd: 8600.0
+      currency: USD
+      period: monthly
+      type: net_inflation_hedged
+    experience_requirements:
+      min_total_years: 15
+      min_leadership_years: 8
+      max_team_size_managed: 30
+    core_competencies:
+    - Model-Based Design (MBD)
+    - MATLAB / Simulink / Stateflow
+    - Physical Modeling & Dynamic Simulation
+    - ISO 26262 (Functional Safety ASIL A-D)
+    - ASPICE Level 2/3 Process Implementation
+    - UN R155 / UN R156 Automotive Cybersecurity (CSMS)
+    - AUTOSAR Classic (BSW/ASW/RTE)
+    - FreeRTOS & RTOS Middleware Architecture
+    - C / C++ Bare-Metal & Low-Level Drivers
+    - 'EV Powertrains: VCU, MCU, Inverters, OBC, BMS'
+    - 'Motor Control: PMSM, IPMSM, MTPA, Flux-Weakening, FOC'
+    - Dyno Characterization & Real-time Telemetry
+    - HIL / MiL Validation (dSpace MABX, MicroAutoBox, Lauterbach Trace32)
+    exclusions:
+    - Junior Developer
+    - Intern / Working Student
+    - Non-technical Project Manager
+    - Frontend Developer
+    - React Native Developer
+    - PHP / WordPress Developer
+    - Pure Quality Assurance Tester
+  track_b:
+    name: Quantitative Developer / Algorithmic Trading
+    enabled: true
+    target_titles:
+    - Quantitative Developer
+    - Algorithmic Trading Engineer
+    - Quant Software Engineer
+    - Automated Strategy Developer
+    - Execution Systems Engineer
+    - Quantitative Systems Architect
+    - High-Frequency / Algorithmic Execution Developer
+    target_regions:
+    - Europe
+    - APAC
+    - China
+    target_cities:
+    - London
+    - Zurich
+    - Amsterdam
+    - Frankfurt
+    - Paris
+    - Singapore
+    - Hong Kong
+    - Tokyo
+    - Shanghai
+    - Shenzhen
+    - Sydney
+    excluded_regions:
+    - United States
+    core_competencies:
+    - Python 3.11+ / AsyncIO
+    - C++ High-Performance Data Processing
+    - pandas / NumPy / SciPy
+    - CCXT Multi-Exchange Integration
+    - AURA Proprietary Execution Architecture
+    - Walk-Forward Optimization & Successive Halving
+    - Multi-Layer Risk Management (Dynamic SL/TP, Volatility Regime Detection)
+    - PAXG Defensive Asset Allocation Overlays
+    - SQLite / Time-Series Database Architecture
+    - Linux systemd 24/7 Daemon Services & Watchdogs
+    - Interactive Brokers API & Binance Spot Execution
+    showcase_asset:
+      name: AURA Trading Architecture
+      url: https://www.auratrading.org/
+      summary: 24/7 automated crypto execution expanding to equity market backtests
+        and dual yields.
+product_engineering_showcase:
+  name: EduTrace
+  url: https://edutrace.net
+  repo: MysApp
+  summary: Special education clinical evaluation platform with offline-first sync
+    engine and multi-LLM clinical study plans.
+  stack:
+  - React Native (Expo SDK 54)
+  - TypeScript
+  - Supabase (PostgreSQL, RLS, Edge Functions, Realtime)
+  - Offline-First Local Storage Engine
+  - Gemini + OpenRouter Fallback Chains
+  - EAS Build CI/CD
+generation_preferences:
+  tailored_cv_format: markdown_and_pdf
+  cover_letter_format: markdown_and_pdf
+  staging_inbox: /home/nsl/Portfolio/career-engine/inbox
+  tone: Executive, Highly Competent, Metric-Driven, Direct

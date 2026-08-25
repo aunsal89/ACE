@@ -1,0 +1,62 @@
+engine:
+  name: Career Engine
+  version: 0.2.0
+  environment: production
+  data_dir: /home/nsl/Portfolio/career-engine/data
+  inbox_dir: /home/nsl/Portfolio/career-engine/inbox
+  log_level: INFO
+database:
+  db_path: /home/nsl/Portfolio/career-engine/data/career_engine.db
+  wal_mode: true
+  timeout_seconds: 30.0
+  foreign_keys: true
+llm:
+  default_provider: google-genai
+  fallback_chain:
+  - google-genai
+  - anthropic
+  - openai
+  providers:
+    google-genai:
+      model: gemini-2.5-pro
+      temperature: 0.2
+      max_output_tokens: 4096
+    anthropic:
+      model: claude-3-7-sonnet-20250219
+      temperature: 0.2
+      max_output_tokens: 4096
+    openai:
+      model: gpt-4o
+      temperature: 0.2
+      max_output_tokens: 4096
+sourcing:
+  request_timeout: 20
+  max_retries: 3
+  rate_limit_per_minute: 30
+  user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)
+    Chrome/131.0.0.0 Safari/537.36 CareerEngine/0.2.0
+  scrapers:
+    google_jobs:
+      enabled: true
+      priority: 1
+    apify_linkedin:
+      enabled: true
+      priority: 1
+    baykar:
+      enabled: true
+      priority: 2
+    aselsan:
+      enabled: true
+      priority: 2
+    vizyoner_genc:
+      enabled: true
+      priority: 2
+    tusas:
+      enabled: true
+      priority: 3
+    roketsan:
+      enabled: true
+      priority: 3
+multi_tenancy:
+  active_tenant: aunsal
+  tenants_dir: /home/nsl/Portfolio/career-engine/config/tenants

@@ -16,9 +16,24 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases (re-creatable via run.py source & init)
+*.sqlite
+*.sqlite3
 
 # macOS-specific files
 .DS_Store
 
-# jetbrains setting folder
+# IDEs
 .idea/
+.vscode/

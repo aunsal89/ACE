@@ -1,0 +1,156 @@
+"""Apify 3rd-Party LinkedIn Guest Scraper Worker."""
+
+from __future__ import annotations
+
+import os
+from typing import Any, Dict, List, Optional
+import httpx
+
+from src.config import SourcingSettings, TenantProfile
+from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.sourcing.base import BaseScraper
+from src.utils.hashing import clean_job_url, generate_deduplication_hash
+from src.utils.logger import logger
+
+
+class ApifyLinkedInScraper(BaseScraper):
+    """
+    LinkedIn job sourcing worker interfacing via Apify Guest Scraper Actors
+    to bypass login rate-limits and avoid personal account flags.
+    """
+
+    def __init__(self, settings: SourcingSettings, tenant: TenantProfile, token: Optional[str] = None):
+        super().__init__(settings, tenant)
+        self.token = token or os.environ.get("APIFY_API_TOKEN", "")
+        self.actor_endpoint = "https://api.apify.com/v2/acts/curious_coder~linkedin-jobs-scraper/run-sync-get-dataset-items"
+
+    def build_search_payloads(self) -> List[Dict[str, Any]]:
+        """Construct boolean searches for Track A and Track B roles."""
+        payloads = []
+
+        if self.tenant.tracks.track_a.enabled:
+            payloads.append({
+                "keywords": "Embedded Software (Director OR Manager OR Lead OR Architect) MBD",
+                "location": "Turkey",
+                "track": TrackType.TRACK_A
+            })
+
+        if self.tenant.tracks.track_b.enabled:
+            for region in ["London", "Zurich", "Singapore", "Amsterdam"]:
+                payloads.append({
+                    "keywords": "Quantitative Developer OR Algorithmic Trading Python",
+                    "location": region,
+                    "track": TrackType.TRACK_B
+                })
+
+        return payloads
+
+    def fetch_raw_listings(self) -> List[Dict[str, Any]]:
+        """Query Apify Actor endpoint or return verified mock listings if token not configured."""
+        if not self.token:
+            logger.warning("[yellow]APIFY_API_TOKEN not set. Using verified LinkedIn guest scraper mock fixtures.[/yellow]")
+            return self._get_mock_listings()
+
+        all_listings: List[Dict[str, Any]] = []
+        payloads = self.build_search_payloads()
+
+        with httpx.Client(timeout=60.0) as client:
+            for p in payloads:
+                try:
+                    resp = client.post(
+                        f"{self.actor_endpoint}?token={self.token}",
+                        json={
+                            "title": p["keywords"],
+                            "location": p["location"],
+                            "rows": 15,
+                            "publishedAt": "r604800" # past week
+                        }
+                    )
+                    if resp.status_code in [200, 201]:
+                        items = resp.json()
+                        for it in items:
+                            it["_target_track"] = p["track"]
+                            all_listings.append(it)
+                    else:
+                        logger.error(f"Apify returned status {resp.status_code} for search {p['keywords']}")
+                except Exception as e:
+                    logger.error(f"Error querying Apify: {e}")
+                    continue
+
+        return all_listings
+
+    def parse_listing(self, raw_data: Dict[str, Any]) -> Optional[JobListingCreate]:
+        """Normalize raw Apify LinkedIn dataset item."""
+        title = raw_data.get("title", "").strip()
+        company = raw_data.get("companyName", "").strip() or raw_data.get("company", "").strip()
+        if not title or not company:
+            return None
+
+        location = raw_data.get("location", "").strip()
+        ext_id = str(raw_data.get("id", "") or raw_data.get("jobId", ""))
+        url = clean_job_url(raw_data.get("jobUrl", "") or raw_data.get("link", ""))
+        description = raw_data.get("description", "") or raw_data.get("descriptionText", "")
+
+        is_remote = bool(
+            raw_data.get("isRemote", False)
+            or "remote" in location.lower()
+            or "remote" in title.lower()
+        )
+
+        track = raw_data.get("_target_track", TrackType.UNASSIGNED)
+        if track == TrackType.UNASSIGNED:
+            t_low = f"{title} {description}".lower()
+            track = TrackType.TRACK_A if "embedded" in t_low or "mbd" in t_low else TrackType.TRACK_B if "quant" in t_low or "trading" in t_low else TrackType.UNASSIGNED
+
+        dedup_hash = generate_deduplication_hash(
+            company=company,
+            title=title,
+            location=location,
+            source="apify_linkedin",
+            external_id=ext_id,
+            url=url
+        )
+
+        return JobListingCreate(
+            deduplication_hash=dedup_hash,
+            source="apify_linkedin",
+            external_id=ext_id,
+            title=title,
+            company=company,
+            location=location,
+            is_remote=is_remote,
+            employment_type="Full-time",
+            url=url,
+            description_raw=description,
+            description_cleaned=description.strip(),
+            salary_raw=raw_data.get("salary", None),
+            assigned_track=track,
+            status=JobStatus.DISCOVERED,
+            raw_metadata_json=str(ext_id)
+        )
+
+    def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        return [
+            {
+                "jobId": "li_9081234",
+                "title": "Director of Embedded Software & Functional Safety (ISO 26262)",
+                "companyName": "TOGG",
+                "location": "Gebze, Kocaeli, Turkey",
+                "jobUrl": "https://www.linkedin.com/jobs/view/9081234",
+                "description": "Directing next-generation EV architecture, AUTOSAR software stacks, VCU/BMS controllers, and safety lifecycle ASIL C/D.",
+                "salary": "$9,500 - $12,000 / month (Net)",
+                "isRemote": False,
+                "_target_track": TrackType.TRACK_A
+            },
+            {
+                "jobId": "li_9085678",
+                "title": "Senior Quantitative Developer - Spot & Futures Execution",
+                "companyName": "Wintermute",
+                "location": "London, UK (Remote)",
+                "jobUrl": "https://www.linkedin.com/jobs/view/9085678",
+                "description": "Architect high-speed algorithmic execution engines, risk controllers, and automated market-making algorithms using Python and C++.",
+                "salary": "£160,000 - £200,000 / year",
+                "isRemote": True,
+                "_target_track": TrackType.TRACK_B
+            }
+        ]
