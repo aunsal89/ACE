@@ -94,32 +94,28 @@ Designed with strict separation of concerns to allow future packaging as a manag
 
 ```
 portfolio/
-├── astro.config.mjs           # Astro + React + Tailwind plugin
-├── tsconfig.json              # Strict TypeScript + react-jsx
-├── package.json               # Node >=22.12.0
 ├── CLAUDE.md                  # Claude project reference
 ├── GEMINI.md                  # Gemini & overall system architecture reference
+├── README.md                  # Portfolio summary & career engine reference
 ├── agent_init_prompt.md       # Multi-phase blueprint and directives
-├── public/
-│   ├── ausnal_headshot.png    # Hero image (object-position: center 25%)
-│   ├── favicon.svg / .ico
-├── src/
-│   ├── content.config.ts      # Collections definition (cv, projects, skills)
-│   ├── styles/global.css      # Tailwind v4 @theme tokens + typography plugin
-│   ├── layouts/Layout.astro   # Navbar, anchors (#ventures, #experience, #skills, #contact), footer
-│   ├── pages/index.astro      # Single page composition
-│   ├── components/
-│   │   ├── Hero.astro         # Reads cv/Intro.md
-│   │   ├── Ventures.astro     # Reads projects/*.md -> VentureTabs
-│   │   ├── VentureTabs.tsx    # React client:load island
-│   │   ├── Timeline.astro     # Reads cv/Experience.md -> .cv-timeline h3 styling
-│   │   ├── Education.astro    # Reads cv/Education.md
-│   │   ├── Skills.astro       # Reads skills/Toolbox.md (dynamic taxonomy)
-│   │   └── Contact.astro      # Reads cv/Contact.md
-│   └── content/
-│       ├── cv/                # Intro.md, Experience.md, Education.md, Contact.md
-│       ├── projects/          # Project_AURA.md, Project_EduTrace.md, ...
-│       └── skills/            # Toolbox.md
+├── .env                       # Central credentials & API keys (Gemini, OpenRouter, Telegram, Gmail, SerpApi, Apify)
+├── web/                       # Astro 6 + React 19 Portfolio Frontend
+│   ├── astro.config.mjs       # Astro + React + Tailwind plugin
+│   ├── tsconfig.json          # Strict TypeScript + react-jsx
+│   ├── package.json           # Node >=22.12.0
+│   ├── public/
+│   │   ├── ausnal_headshot.png # Hero image (object-position: center 25%)
+│   │   └── favicon.svg / .ico
+│   └── src/
+│       ├── content.config.ts  # Collections definition (cv, projects, skills)
+│       ├── styles/global.css  # Tailwind v4 @theme tokens + typography plugin
+│       ├── layouts/Layout.astro # Navbar, anchors (#ventures, #experience, #skills, #contact), footer
+│       ├── pages/index.astro  # Single page composition
+│       ├── components/        # Hero, Ventures, VentureTabs, Timeline, Education, Skills, Contact
+│       └── content/
+│           ├── cv/            # Intro.md, Experience.md, Education.md, Contact.md
+│           ├── projects/      # Project_AURA.md, Project_EduTrace.md, ...
+│           └── skills/        # Toolbox.md
 └── career-engine/             # Autonomous Career Engine Orchestrator
     ├── run.py                 # CLI executable entry point
     ├── config/                # config.yaml & tenants/aunsal/profile.yaml
@@ -130,19 +126,22 @@ portfolio/
     ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
     ├── src/
     │   ├── sourcing/          # Google Jobs, LinkedIn Apify, Baykar, Aselsan, etc.
-    │   ├── scoring/           # LLM fit scoring & multi-provider fallback client
+    │   ├── scoring/           # LLM fit scoring & OpenRouter free-model cascade client
     │   ├── applicator/        # Generative resume & cover letter drafting pipeline
     │   ├── database/          # SQLite schema, models & repository
+    │   ├── notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
     │   └── utils/             # Hashing, Unicode PDF renderer & logger
     └── tests/                 # Full unit test suite (24 tests)
 ```
 
 ### 4.1 Critical Codebase Rules & Invariants
-1. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
-2. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
-3. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
-4. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
-5. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
+1. **Frontend Isolation (`web/`):** All Astro website source code, static assets, and package manifests reside in `web/`.
+2. **LLM Cascade Architecture:** Primary evaluation uses Google Gemini (`gemini-2.5-flash`), with cascading automatic fallback across top free models on OpenRouter (`nvidia/nemotron-3-super-120b-a12b:free`, `minimax/minimax-m2.7:free`, `google/gemma-4-31b-it:free`, etc.), followed by a deterministic rule-based evaluator.
+3. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
+4. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
+5. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
+6. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
+7. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
 
 ---
 

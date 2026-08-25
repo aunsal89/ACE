@@ -10,10 +10,10 @@ links:
   aura_showcase: https://www.auratrading.org/
   edutrace_showcase: https://edutrace.net
 sources_of_truth:
-  cv_markdown: /home/nsl/Portfolio/src/content/cv/Experience.md
-  education_markdown: /home/nsl/Portfolio/src/content/cv/Education.md
-  skills_toolbox: /home/nsl/Portfolio/src/content/skills/Toolbox.md
-  portfolio_root: /home/nsl/Portfolio
+  cv_markdown: /home/nsl/Portfolio/web/src/content/cv/Experience.md
+  education_markdown: /home/nsl/Portfolio/web/src/content/cv/Education.md
+  skills_toolbox: /home/nsl/Portfolio/web/src/content/skills/Toolbox.md
+  portfolio_root: /home/nsl/Portfolio/web
 tracks:
   track_a:
     name: Embedded Software Leadership / Directorship

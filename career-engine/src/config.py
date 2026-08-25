@@ -46,14 +46,15 @@ class DatabaseSettings(BaseModel):
 
 
 class LLMModelConfig(BaseModel):
-    model: str
+    model: Optional[str] = None
+    models: Optional[List[str]] = None
     temperature: float = 0.2
     max_output_tokens: int = 4096
 
 
 class LLMSettings(BaseModel):
     default_provider: str = "google-genai"
-    fallback_chain: List[str] = Field(default_factory=lambda: ["google-genai", "anthropic", "openai"])
+    fallback_chain: List[str] = Field(default_factory=lambda: ["google-genai", "openrouter"])
     providers: Dict[str, LLMModelConfig] = Field(default_factory=dict)
 
 

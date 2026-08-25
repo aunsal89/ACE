@@ -21,6 +21,9 @@ from src.sourcing.defense.tusas_roketsan import TusasScraper, RoketsanScraper
 from src.sourcing.manager import SourcingManager
 
 
+from unittest.mock import patch
+
+
 class TestSourcing(unittest.TestCase):
     def setUp(self):
         self.config = load_engine_config()
@@ -28,44 +31,49 @@ class TestSourcing(unittest.TestCase):
 
     def test_google_jobs_scraper(self):
         scraper = GoogleJobsScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.source, "google_jobs")
-            self.assertTrue(len(j.deduplication_hash) == 64)
-            self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.source, "google_jobs")
+                self.assertTrue(len(j.deduplication_hash) == 64)
+                self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
 
     def test_apify_linkedin_scraper(self):
         scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.source, "apify_linkedin")
-            self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.source, "apify_linkedin")
+                self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
 
     def test_baykar_scraper(self):
         scraper = BaykarScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.company, "Baykar")
-            self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.company, "Baykar")
+                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_aselsan_scraper(self):
         scraper = AselsanScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.company, "ASELSAN")
-            self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.company, "ASELSAN")
+                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_vizyoner_genc_scraper(self):
         scraper = VizyonerGencScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.source, "vizyoner_genc")
-            self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.source, "vizyoner_genc")
+                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_tusas_scraper(self):
         scraper = TusasScraper(self.config.sourcing, self.tenant)
@@ -90,6 +98,14 @@ class TestSourcing(unittest.TestCase):
             test_config.database.db_path = temp_db
 
             manager = SourcingManager(config=test_config, tenant=self.tenant)
+            
+            mock_scrapers = []
+            for scraper in manager.get_active_scrapers():
+                if hasattr(scraper, "_get_mock_listings"):
+                    scraper.fetch_raw_listings = scraper._get_mock_listings
+                mock_scrapers.append(scraper)
+            manager.get_active_scrapers = lambda name=None: mock_scrapers
+
             result = manager.run_sourcing_pipeline()
 
             self.assertGreater(result["total_discovered"], 0)

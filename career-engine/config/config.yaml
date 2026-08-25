@@ -14,19 +14,23 @@ llm:
   default_provider: google-genai
   fallback_chain:
   - google-genai
-  - anthropic
-  - openai
+  - openrouter
   providers:
     google-genai:
-      model: gemini-2.5-pro
+      model: gemini-2.5-flash
       temperature: 0.2
       max_output_tokens: 4096
-    anthropic:
-      model: claude-3-7-sonnet-20250219
-      temperature: 0.2
-      max_output_tokens: 4096
-    openai:
-      model: gpt-4o
+    openrouter:
+      models:
+      - openrouter/free
+      - nvidia/nemotron-3-super-120b-a12b:free
+      - meta-llama/llama-3.3-70b-instruct:free
+      - google/gemma-4-31b-it:free
+      - google/gemma-4-26b-a4b-it:free
+      - z-ai/glm-5.2:free
+      - minimax/minimax-m2.7:free
+      - minimax/minimax-m3:free
+      - thinkingmachines/inkling:free
       temperature: 0.2
       max_output_tokens: 4096
 sourcing:

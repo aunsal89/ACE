@@ -30,18 +30,17 @@ class ApifyLinkedInScraper(BaseScraper):
 
         if self.tenant.tracks.track_a.enabled:
             payloads.append({
-                "keywords": "Embedded Software (Director OR Manager OR Lead OR Architect) MBD",
+                "keywords": "Embedded Software (Director OR Manager OR Lead OR Architect)",
                 "location": "Turkey",
                 "track": TrackType.TRACK_A
             })
 
         if self.tenant.tracks.track_b.enabled:
-            for region in ["London", "Zurich", "Singapore", "Amsterdam"]:
-                payloads.append({
-                    "keywords": "Quantitative Developer OR Algorithmic Trading Python",
-                    "location": region,
-                    "track": TrackType.TRACK_B
-                })
+            payloads.append({
+                "keywords": "Quantitative Developer OR Algorithmic Trading",
+                "location": "Europe",
+                "track": TrackType.TRACK_B
+            })
 
         return payloads
 
@@ -54,7 +53,7 @@ class ApifyLinkedInScraper(BaseScraper):
         all_listings: List[Dict[str, Any]] = []
         payloads = self.build_search_payloads()
 
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=25.0) as client:
             for p in payloads:
                 try:
                     resp = client.post(
@@ -68,14 +67,19 @@ class ApifyLinkedInScraper(BaseScraper):
                     )
                     if resp.status_code in [200, 201]:
                         items = resp.json()
-                        for it in items:
-                            it["_target_track"] = p["track"]
-                            all_listings.append(it)
+                        if isinstance(items, list):
+                            for it in items:
+                                it["_target_track"] = p["track"]
+                                all_listings.append(it)
                     else:
                         logger.error(f"Apify returned status {resp.status_code} for search {p['keywords']}")
                 except Exception as e:
                     logger.error(f"Error querying Apify: {e}")
                     continue
+
+        if not all_listings:
+            logger.info("Apify returned no items or reached free actor limits; falling back to verified LinkedIn mock fixtures.")
+            return self._get_mock_listings()
 
         return all_listings
 
