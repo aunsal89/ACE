@@ -5,8 +5,18 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 import yaml
 from pydantic import BaseModel, Field, field_validator
+
+# Automatically discover and load .env files
+for _candidate_env in [
+    Path("/home/nsl/Portfolio/.env"),
+    Path(__file__).resolve().parent.parent / ".env",
+    Path.cwd() / ".env",
+]:
+    if _candidate_env.exists():
+        load_dotenv(_candidate_env, override=False)
 
 
 class EngineSettings(BaseModel):

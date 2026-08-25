@@ -17,6 +17,7 @@ from src.sourcing.manager import SourcingManager, SCRAPER_REGISTRY
 from src.scoring.scorer import OpportunityScorer
 from src.applicator.generator import ApplicationGenerator
 from src.utils.hashing import generate_deduplication_hash, normalize_company, normalize_title
+from src.utils.notifications import NotificationService
 
 console = Console()
 
@@ -232,6 +233,7 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     """Execute end-to-end career sourcing, scoring, and application drafting pipeline."""
     config = load_engine_config()
     tenant_mgr = TenantManager(config)
+    notifier = NotificationService()
 
     if getattr(args, "all_tenants", False):
         tenant_ids = tenant_mgr.list_available_tenants()
@@ -244,7 +246,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         f"[bold cyan]Career Engine Autonomous Pipeline[/bold cyan]\n"
         f"Processing {len(tenant_ids)} tenant(s): {', '.join(tenant_ids)}\n"
         f"Database: {config.database.db_path}\n"
-        f"Inbox: {config.engine.inbox_dir}",
+        f"Inbox: {config.engine.inbox_dir}\n"
+        f"Notifications: Telegram={'[green]ON[/green]' if notifier.telegram_enabled else '[dim]OFF[/dim]'} | Gmail={'[green]ON[/green]' if notifier.email_enabled else '[dim]OFF[/dim]'}",
         title="Pipeline Execution",
         border_style="cyan"
     ))
@@ -256,23 +259,79 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         # Phase 1: Sourcing
         console.print("[bold blue]1. Running Multi-Channel Sourcing Pipeline...[/bold blue]")
         sourcing_mgr = SourcingManager(config=config, tenant=tenant)
-        sourcing_mgr.run_sourcing_pipeline(scraper_name=getattr(args, "scraper", None), dry_run=getattr(args, "dry_run", False))
+        source_res = sourcing_mgr.run_sourcing_pipeline(scraper_name=getattr(args, "scraper", None), dry_run=getattr(args, "dry_run", False))
 
         if getattr(args, "dry_run", False):
-            console.print("[yellow]Dry-run enabled: skipping scoring and drafting.[/yellow]")
+            console.print("[yellow]Dry-run enabled: skipping scoring, drafting, and notifications.[/yellow]")
             continue
 
         # Phase 2: Scoring
         console.print("[bold blue]2. Running Opportunity Scoring Engine...[/bold blue]")
         scorer = OpportunityScorer(config=config, tenant=tenant)
-        scorer.run_scoring_batch(auto_queue=True)
+        evals = scorer.run_scoring_batch(auto_queue=True)
+        queued_count = sum(1 for e in evals if getattr(e, "recommendation", None) and e.recommendation.value == "QUEUE")
 
         # Phase 3: Drafting
         console.print("[bold blue]3. Drafting Tailored Application Packages into /inbox/...[/bold blue]")
         drafter = ApplicationGenerator(config=config, tenant=tenant)
-        drafter.draft_queued_jobs()
+        pkgs = drafter.draft_queued_jobs()
+
+        # Phase 4: Dispatch Notifications
+        notifier.notify_pipeline_run(
+            tenant_name=tenant.name,
+            total_discovered=source_res.get("total_discovered", 0),
+            new_jobs=source_res.get("new_jobs", 0),
+            queued_count=queued_count,
+            staged_packages=len(pkgs)
+        )
 
     console.print("\n[bold green]✓ End-to-End Pipeline Execution Finished.[/bold green]")
+
+
+def cmd_test_notify(args: argparse.Namespace) -> None:
+    """Test Telegram bot and Gmail SMTP notifications using current .env configuration."""
+    notifier = NotificationService()
+
+    console.print(Panel(
+        f"[bold cyan]Notification Service Test Diagnostic[/bold cyan]\n"
+        f"• Telegram Bot Token Configured: {'[green]Yes[/green]' if notifier.telegram_token else '[red]No (TELEGRAM_BOT_TOKEN missing)[/red]'}\n"
+        f"• Telegram Chat ID Configured: {'[green]Yes[/green]' if notifier.telegram_chat_id else '[red]No (TELEGRAM_CHAT_ID missing)[/red]'}\n"
+        f"• Gmail SMTP User: {notifier.smtp_user or '[red]Missing (SMTP_USER)[/red]'}\n"
+        f"• Gmail SMTP Pass: {'[green]Configured[/green]' if notifier.smtp_password else '[red]Missing (SMTP_PASSWORD)[/red]'}\n"
+        f"• Notification Recipient Email: {notifier.notification_email or '[red]Missing[/red]'}",
+        title="Notification Diagnostics",
+        border_style="yellow"
+    ))
+
+    # Test Telegram
+    if notifier.telegram_enabled:
+        console.print("[cyan]Sending test message to Telegram...[/cyan]")
+        tg_ok = notifier.send_telegram(
+            "🔔 <b>Career Engine Test Notification</b>\n\n"
+            "Your Telegram notification channel is correctly configured and operational! 🚀",
+            parse_mode="HTML"
+        )
+        if tg_ok:
+            console.print("[bold green]✓ Telegram test notification delivered successfully![/bold green]")
+        else:
+            console.print("[bold red]✗ Failed to send Telegram test notification. Check your Bot Token and Chat ID.[/bold red]")
+    else:
+        console.print("[yellow]⚠ Telegram notifications disabled (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env to enable).[/yellow]")
+
+    # Test Email
+    if notifier.email_enabled:
+        console.print(f"[cyan]Sending test email via Gmail SMTP to {notifier.notification_email}...[/cyan]")
+        email_ok = notifier.send_email(
+            subject="🔔 Career Engine Test Notification",
+            body_text="Your Gmail SMTP notification channel is correctly configured and operational!",
+            body_html="<h3>🔔 Career Engine Test Notification</h3><p>Your Gmail SMTP notification channel is correctly configured and operational! 🚀</p>"
+        )
+        if email_ok:
+            console.print(f"[bold green]✓ Gmail SMTP test email delivered successfully to {notifier.notification_email}![/bold green]")
+        else:
+            console.print("[bold red]✗ Failed to send Gmail SMTP test email. Verify your Gmail App Password and 2-Step Verification.[/bold red]")
+    else:
+        console.print("[yellow]⚠ Gmail notifications disabled (set SMTP_USER, SMTP_PASSWORD, and NOTIFICATION_EMAIL in .env to enable).[/yellow]")
 
 
 def main() -> None:
@@ -286,6 +345,10 @@ def main() -> None:
     p_pipe.add_argument("--scraper", type=str, choices=list(SCRAPER_REGISTRY.keys()), help="Run specific scraper")
     p_pipe.add_argument("--dry-run", action="store_true", help="Run sourcing dry-run without persistence/scoring")
     p_pipe.set_defaults(func=cmd_pipeline)
+
+    # test-notify
+    p_notif = subparsers.add_parser("test-notify", help="Test Telegram and Gmail SMTP notification delivery")
+    p_notif.set_defaults(func=cmd_test_notify)
 
     # init-db
     p_init = subparsers.add_parser("init-db", help="Initialize database schema")
