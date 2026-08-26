@@ -18,6 +18,9 @@ from src.utils.hashing import generate_deduplication_hash
 from src.utils.pdf import render_markdown_to_pdf
 
 
+from unittest.mock import patch
+
+
 class TestPhase4(unittest.TestCase):
     def setUp(self):
         self.config = load_engine_config()
@@ -59,11 +62,12 @@ class TestPhase4(unittest.TestCase):
             )
             saved_job, _ = repo.upsert_job(job)
 
-            evaluation = scorer.evaluate(saved_job)
-            self.assertEqual(evaluation.track, "TRACK_A")
-            self.assertGreaterEqual(evaluation.overall_score, 80.0)
-            self.assertEqual(evaluation.recommendation, RecommendationType.QUEUE)
-            self.assertTrue(evaluation.fits_criteria)
+            with patch.object(scorer.llm_client, "evaluate_fit", side_effect=scorer.llm_client._evaluate_deterministic):
+                evaluation = scorer.evaluate(saved_job)
+                self.assertEqual(evaluation.track, "TRACK_A")
+                self.assertGreaterEqual(evaluation.overall_score, 80.0)
+                self.assertEqual(evaluation.recommendation, RecommendationType.QUEUE)
+                self.assertTrue(evaluation.fits_criteria)
 
     def test_scoring_engine_track_b(self):
         scorer = OpportunityScorer(config=self.config, tenant=self.tenant)
@@ -88,10 +92,11 @@ class TestPhase4(unittest.TestCase):
             )
             saved_job, _ = repo.upsert_job(job)
 
-            evaluation = scorer.evaluate(saved_job)
-            self.assertEqual(evaluation.track, "TRACK_B")
-            self.assertGreaterEqual(evaluation.overall_score, 80.0)
-            self.assertEqual(evaluation.recommendation, RecommendationType.QUEUE)
+            with patch.object(scorer.llm_client, "evaluate_fit", side_effect=scorer.llm_client._evaluate_deterministic):
+                evaluation = scorer.evaluate(saved_job)
+                self.assertEqual(evaluation.track, "TRACK_B")
+                self.assertGreaterEqual(evaluation.overall_score, 80.0)
+                self.assertEqual(evaluation.recommendation, RecommendationType.QUEUE)
 
     def test_application_generator(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -118,6 +123,23 @@ class TestPhase4(unittest.TestCase):
                 status=JobStatus.QUEUED
             )
             saved_job, _ = repo.upsert_job(job)
+
+            from src.database.models import ScoringEvaluationCreate
+            eval_mock = ScoringEvaluationCreate(
+                job_id=saved_job.id,
+                tenant_id=self.tenant.tenant_id,
+                track="TRACK_A",
+                overall_score=92.0,
+                skills_match_score=95.0,
+                seniority_match_score=90.0,
+                location_match_score=90.0,
+                compensation_match_score=90.0,
+                fits_criteria=True,
+                recommendation=RecommendationType.QUEUE,
+                rationale="Excellent match for Track A Embedded Leadership.",
+                model_used="deterministic"
+            )
+            repo.save_evaluation(eval_mock)
 
             drafter = ApplicationGenerator(config=test_config, tenant=self.tenant)
             packages = drafter.draft_queued_jobs(job_id=saved_job.id)

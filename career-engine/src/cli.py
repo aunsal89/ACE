@@ -15,6 +15,7 @@ from src.database.models import JobStatus, TrackType
 from src.database.repository import JobRepository
 from src.sourcing.manager import SourcingManager, SCRAPER_REGISTRY
 from src.scoring.scorer import OpportunityScorer
+from src.scoring.openrouter_router import OpenRouterManager
 from src.applicator.generator import ApplicationGenerator
 from src.utils.hashing import generate_deduplication_hash, normalize_company, normalize_title
 from src.utils.notifications import NotificationService
@@ -252,6 +253,15 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         border_style="cyan"
     ))
 
+    if getattr(args, "refresh_models", False):
+        console.print("[bold cyan]Refreshing OpenRouter free-tier models cache...[/bold cyan]")
+        try:
+            orm = OpenRouterManager()
+            orm.discover_and_rank_models(force_refresh=True)
+            console.print("[bold green]✓ OpenRouter free model cache successfully refreshed.[/bold green]")
+        except Exception as e:
+            console.print(f"[yellow]⚠ Failed to refresh model cache: {e}[/yellow]")
+
     for tid in tenant_ids:
         tenant = tenant_mgr.get_tenant(tid)
         console.print(f"\n[bold yellow]>>> Processing Tenant: {tenant.name} ({tenant.tenant_id})[/bold yellow]")
@@ -335,6 +345,15 @@ def cmd_test_notify(args: argparse.Namespace) -> None:
         console.print("[yellow]⚠ Gmail notifications disabled (set SMTP_USER, SMTP_PASSWORD, and NOTIFICATION_EMAIL in .env to enable).[/yellow]")
 
 
+def cmd_refresh_models(args: argparse.Namespace) -> None:
+    """Discover, rank, and cache active OpenRouter free models."""
+    mgr = OpenRouterManager()
+    models = mgr.discover_and_rank_models(limit=args.limit, force_refresh=True)
+    console.print(f"[bold green]✓ Discovered and cached {len(models)} ranked OpenRouter free models.[/bold green]")
+    for i, m in enumerate(models, 1):
+        console.print(f" {i:2d}. [bold cyan]{m.id:<50}[/bold cyan] (Score: [yellow]{m.score:4.2f}[/yellow] | Ctx: {m.context_length:,} tokens | {m.name})")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Career Engine CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -345,7 +364,13 @@ def main() -> None:
     p_pipe.add_argument("--all-tenants", action="store_true", help="Process all available tenants sequentially")
     p_pipe.add_argument("--scraper", type=str, choices=list(SCRAPER_REGISTRY.keys()), help="Run specific scraper")
     p_pipe.add_argument("--dry-run", action="store_true", help="Run sourcing dry-run without persistence/scoring")
+    p_pipe.add_argument("--refresh-models", action="store_true", help="Refresh OpenRouter free model cache before execution")
     p_pipe.set_defaults(func=cmd_pipeline)
+
+    # refresh-models
+    p_ref = subparsers.add_parser("refresh-models", help="Discover and cache active OpenRouter free models")
+    p_ref.add_argument("--limit", type=int, default=10, help="Number of models to rank and display")
+    p_ref.set_defaults(func=cmd_refresh_models)
 
     # test-notify
     p_notif = subparsers.add_parser("test-notify", help="Test Telegram and Gmail SMTP notification delivery")

@@ -13,7 +13,7 @@ Environment="PYTHONUNBUFFERED=1"
 Environment="PATH=/home/nsl/miniconda3/envs/lnxenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
 EnvironmentFile=-/home/nsl/Portfolio/.env
 EnvironmentFile=-/home/nsl/Portfolio/career-engine/.env
-ExecStart=/home/nsl/miniconda3/envs/lnxenv/bin/python /home/nsl/Portfolio/career-engine/run.py pipeline
+ExecStart=/home/nsl/miniconda3/envs/lnxenv/bin/python /home/nsl/Portfolio/career-engine/run.py pipeline --refresh-models
 
 # Resilience & Error Handling
 Restart=on-failure

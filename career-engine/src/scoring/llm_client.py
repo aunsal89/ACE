@@ -8,41 +8,27 @@ import re
 from typing import Any, Dict, List, Optional
 import requests
 
+from pydantic import BaseModel, Field
+
 from src.config import LLMSettings, TenantProfile
 from src.database.models import JobListing, RecommendationType, TrackType
+from src.scoring.openrouter_router import OpenRouterManager, clean_and_repair_json
 from src.utils.logger import logger
 
 
-DEFAULT_OPENROUTER_FREE_MODELS = [
-    "openrouter/free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "google/gemma-4-31b-it:free",
-    "google/gemma-4-26b-a4b-it:free",
-    "z-ai/glm-5.2:free",
-    "minimax/minimax-m2.7:free",
-    "minimax/minimax-m3:free",
-    "thinkingmachines/inkling:free",
-]
-
-
-def _clean_json_response(raw_text: str) -> Dict[str, Any]:
-    """Clean markdown code blocks and extract structured JSON dict."""
-    cleaned = raw_text.strip()
-    if "```" in cleaned:
-        # Match code block
-        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
-        if match:
-            cleaned = match.group(1).strip()
-
-    # If there is extra text outside JSON brackets, extract substring between first { and last }
-    if not (cleaned.startswith("{") and cleaned.endswith("}")):
-        start_idx = cleaned.find("{")
-        end_idx = cleaned.rfind("}")
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            cleaned = cleaned[start_idx:end_idx + 1]
-
-    return json.loads(cleaned)
+class OpportunityEvaluationSchema(BaseModel):
+    """Schema for LLM opportunity scoring."""
+    track: str
+    overall_score: float
+    comp_score: float = 0.0
+    location_score: float = 0.0
+    tech_stack_score: float = 0.0
+    leadership_score: float = 0.0
+    fits_criteria: bool = False
+    matched_keywords: List[str] = Field(default_factory=list)
+    missing_keywords: List[str] = Field(default_factory=list)
+    reasoning: str = ""
+    recommendation: str = "MANUAL_REVIEW"
 
 
 class ScoringLLMClient:
@@ -55,13 +41,14 @@ class ScoringLLMClient:
         self.openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
         self.anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         self.openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+        self.openrouter_manager = OpenRouterManager(api_key=self.openrouter_key)
 
     def evaluate_fit(self, job: JobListing) -> Dict[str, Any]:
         """
         Evaluate job listing against dual-track tenant criteria.
         Fallback chain:
         1. Google Gemini (via official API key)
-        2. OpenRouter (sequential cascade across up to 9 free-tier models)
+        2. OpenRouter (dynamic heuristic-ranked free-tier models with dual-tier retry & cascade)
         3. Deterministic high-precision rule scoring engine
         """
         # Step 1: Try Primary Provider (Google Gemini)
@@ -73,19 +60,14 @@ class ScoringLLMClient:
             except Exception as e:
                 logger.warning(f"Google Gemini GenAI evaluation failed: {e}. Cascading to OpenRouter fallback models.")
 
-        # Step 2: Try OpenRouter Free-Tier Models Fallback Chain
+        # Step 2: Try OpenRouter Dynamic Resilient Free Models
         if self.openrouter_key:
-            or_cfg = self.settings.providers.get("openrouter")
-            candidate_models = (or_cfg.models if or_cfg and or_cfg.models else DEFAULT_OPENROUTER_FREE_MODELS)
-
-            for model_name in candidate_models:
-                try:
-                    res = self._evaluate_with_openrouter(job, model_name=model_name)
-                    if res and isinstance(res, dict) and "overall_score" in res:
-                        logger.info(f"Opportunity successfully evaluated using OpenRouter free model [{model_name}].")
-                        return res
-                except Exception as e:
-                    logger.debug(f"OpenRouter model [{model_name}] evaluation failed: {e}. Trying next free model...")
+            try:
+                res_dict = self._evaluate_with_openrouter_dynamic(job)
+                if res_dict and "overall_score" in res_dict:
+                    return res_dict
+            except Exception as e:
+                logger.warning(f"OpenRouter dynamic evaluation failed: {e}. Cascading to deterministic fallback.")
 
         # Step 3: Optional Legacy Providers
         if self.anthropic_key:
@@ -226,22 +208,14 @@ Return ONLY valid JSON with keys:
         data["model_used"] = f"google-genai/{model_name}"
         return data
 
-    def _evaluate_with_openrouter(self, job: JobListing, model_name: str) -> Optional[Dict[str, Any]]:
-        """Evaluate job listing using OpenRouter free model with structured JSON extraction."""
-        url = "https://openrouter.ai/api/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.openrouter_key}",
-            "HTTP-Referer": "https://ahmethalitunsal.com",
-            "X-Title": "Career Engine",
-            "Content-Type": "application/json"
-        }
-
+    def _evaluate_with_openrouter_dynamic(self, job: JobListing) -> Dict[str, Any]:
+        """Evaluate job listing using dynamic OpenRouter free-tier engine with schema validation & cascading resilience."""
         system_prompt = (
             "You are an executive career evaluation AI assessing job opportunities for Ahmet Halit Ünsal.\n"
             "Dual-track profiles:\n"
             "Track A: Embedded Software Leadership / Directorship (15+ yrs exp, 8+ yrs managing teams up to 30 engineers, MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control, EV Inverters/BMS, Defense/Automotive in Istanbul/Ankara).\n"
             "Track B: Quantitative Developer / Algorithmic Trading (AURA engine, CCXT, Python/C++, walk-forward optimization, execution algorithms in Europe/APAC/China, excluding US).\n\n"
-            "You must return ONLY valid JSON with keys: track (TRACK_A or TRACK_B), overall_score (0-100), comp_score (0-100), location_score (0-100), tech_stack_score (0-100), leadership_score (0-100), fits_criteria (bool), matched_keywords (list of strings), missing_keywords (list of strings), reasoning (str), recommendation (QUEUE, REJECT, MANUAL_REVIEW)."
+            "Score the opportunity strictly against these dual-track criteria."
         )
 
         user_content = (
@@ -251,25 +225,16 @@ Return ONLY valid JSON with keys:
             f"Description: {job.description_raw or 'N/A'}\n"
         )
 
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ],
-            "temperature": 0.2,
-            "max_tokens": 2048
-        }
+        eval_obj: OpportunityEvaluationSchema = self.openrouter_manager.execute_with_fallback(
+            prompt=user_content,
+            system_prompt=system_prompt,
+            response_schema=OpportunityEvaluationSchema,
+            max_models=5
+        )
 
-        resp = requests.post(url, headers=headers, json=payload, timeout=20)
-        if resp.status_code == 200:
-            result = resp.json()
-            content = result["choices"][0]["message"]["content"]
-            data = _clean_json_response(content)
-            data["model_used"] = f"openrouter/{model_name}"
-            return data
-        else:
-            raise RuntimeError(f"OpenRouter returned status {resp.status_code}: {resp.text[:120]}")
+        data = eval_obj.model_dump()
+        data["model_used"] = "openrouter/free-cascade"
+        return data
 
     def _evaluate_with_anthropic(self, job: JobListing) -> Optional[Dict[str, Any]]:
         return None
