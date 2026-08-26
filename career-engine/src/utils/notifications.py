@@ -97,15 +97,22 @@ class NotificationService:
         total_discovered: int,
         new_jobs: int,
         queued_count: int,
-        staged_packages: int
+        staged_packages: int,
+        warnings: Optional[List[str]] = None
     ) -> None:
-        """Send summary notification at the end of a pipeline run."""
+        """Send summary notification at the end of a pipeline run including any non-fatal warnings."""
         if not (self.telegram_enabled or self.email_enabled):
             return
 
-        subject = f"🎯 Career Engine Sourcing Report: {new_jobs} New Jobs | {queued_count} Queued"
+        warnings_list = warnings or []
+        warning_tag = " [⚠️ Alerts]" if warnings_list else ""
+        subject = f"🎯 Career Engine Sourcing Report: {new_jobs} New Jobs | {queued_count} Queued{warning_tag}"
 
-        # Plain text
+        # Plain text formatting
+        warning_text = ""
+        if warnings_list:
+            warning_text = "\n⚠️ Channel Alerts / Warnings:\n" + "\n".join(f"• {w}" for w in warnings_list) + "\n"
+
         text_summary = (
             f"Career Engine Sourcing & Scoring Complete\n"
             f"-----------------------------------------\n"
@@ -113,22 +120,41 @@ class NotificationService:
             f"Total Opportunities Scraped: {total_discovered}\n"
             f"New Job Postings: {new_jobs}\n"
             f"High-Fit Jobs Queued: {queued_count}\n"
-            f"Staged Application Packages in /inbox/: {staged_packages}\n\n"
+            f"Staged Application Packages in /inbox/: {staged_packages}\n"
+            f"{warning_text}\n"
             f"Review packages locally or run: python run.py list-inbox"
         )
 
-        # Telegram HTML
+        # Telegram HTML formatting
+        tg_warnings = ""
+        if warnings_list:
+            formatted_w = "\n".join(f"• <i>{w}</i>" for w in warnings_list)
+            tg_warnings = f"\n⚠️ <b>Channel Alerts & Fallbacks:</b>\n{formatted_w}\n"
+
         tg_html = (
             f"🚀 <b>Career Engine Pipeline Summary</b>\n\n"
             f"👤 <b>Tenant:</b> {tenant_name}\n"
             f"🔍 <b>Listings Scraped:</b> {total_discovered}\n"
             f"✨ <b>New Opportunities:</b> {new_jobs}\n"
             f"🎯 <b>High-Fit Jobs Queued:</b> {queued_count}\n"
-            f"📁 <b>Staged Packages:</b> {staged_packages}\n\n"
+            f"📁 <b>Staged Packages:</b> {staged_packages}\n"
+            f"{tg_warnings}\n"
             f"<i>Check your /inbox/ directory for generated CV and Cover Letter PDFs!</i>"
         )
 
-        # HTML Email
+        # HTML Email formatting
+        html_warning_box = ""
+        if warnings_list:
+            items_html = "".join(f"<li style='margin-bottom: 4px;'>{w}</li>" for w in warnings_list)
+            html_warning_box = f"""
+            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 15px 0; border-radius: 4px; color: #856404; font-size: 13px;">
+                <strong>⚠️ Channel Alerts &amp; Fallback Status:</strong>
+                <ul style="margin: 6px 0 0 0; padding-left: 20px;">
+                    {items_html}
+                </ul>
+            </div>
+            """
+
         html_email = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
@@ -136,6 +162,7 @@ class NotificationService:
                 <h2 style="color: #0b57d0; border-bottom: 2px solid #0b57d0; padding-bottom: 8px;">🎯 Career Engine Pipeline Report</h2>
                 <p>Hello <strong>{tenant_name}</strong>,</p>
                 <p>Your autonomous career sourcing pipeline has executed successfully.</p>
+                {html_warning_box}
                 <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                     <tr style="background-color: #f8f9fa;">
                         <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Total Scraped</strong></td>

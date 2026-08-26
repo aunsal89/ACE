@@ -15,6 +15,12 @@ class BaseScraper(ABC):
         self.settings = settings
         self.tenant = tenant
         self.source_name: str = self.__class__.__name__.lower()
+        self.warnings: List[str] = []
+
+    def add_warning(self, message: str) -> None:
+        """Record a non-fatal scraper warning or degradation alert."""
+        if message not in self.warnings:
+            self.warnings.append(message)
 
     @abstractmethod
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:

@@ -115,6 +115,26 @@ class TestSourcing(unittest.TestCase):
             result_second = manager.run_sourcing_pipeline()
             self.assertEqual(result_second["new_jobs"], 0)
             self.assertEqual(result_second["existing_jobs"], result["total_discovered"])
+            self.assertIn("warnings", result)
+
+    def test_apify_quota_exceeded_fallback(self):
+        """Verify that HTTP 403 / hard usage limit returns fallback mock listings and records warning."""
+        from unittest.mock import MagicMock
+        scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant, token="mock_token")
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 403
+        mock_resp.text = '{"error": {"type": "platform-feature-disabled", "message": "Monthly usage hard limit exceeded"}}'
+
+        with patch("httpx.Client.post", return_value=mock_resp):
+            listings = scraper.fetch_raw_listings()
+            self.assertGreater(len(listings), 0)
+            self.assertTrue(any("limit ($5.00) exceeded" in w for w in scraper.warnings))
+            
+            jobs = scraper.run()
+            self.assertGreater(len(jobs), 0)
+            for j in jobs:
+                self.assertEqual(j.source, "apify_linkedin")
 
 
 if __name__ == "__main__":

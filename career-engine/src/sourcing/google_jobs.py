@@ -23,35 +23,33 @@ class GoogleJobsScraper(BaseScraper):
         self.endpoint = "https://serpapi.com/search.json"
 
     def build_search_queries(self) -> List[Dict[str, Any]]:
-        """Construct high-intent search queries based on Track A and Track B tenant criteria."""
+        """Construct high-intent consolidated search queries based on Track A and Track B tenant criteria."""
         queries = []
 
-        # Track A: Embedded Leadership (Turkey / EMEA)
+        # Track A: Embedded Software Leadership (Turkey)
         if self.tenant.tracks.track_a.enabled:
-            for title in self.tenant.tracks.track_a.target_titles[:3]:
-                for loc in self.tenant.tracks.track_a.target_locations:
-                    queries.append({
-                        "q": f"{title} in {loc}",
-                        "location": loc,
-                        "track": TrackType.TRACK_A,
-                    })
+            queries.append({
+                "q": "Embedded Software (Director OR Manager OR Lead OR Architect)",
+                "location": "Turkey",
+                "track": TrackType.TRACK_A,
+            })
 
-        # Track B: Quant Developer (Europe / APAC)
+        # Track B: Quant Developer / Algorithmic Trading (Europe / Remote)
         if self.tenant.tracks.track_b.enabled:
-            for title in self.tenant.tracks.track_b.target_titles[:3]:
-                for city in self.tenant.tracks.track_b.target_cities[:5]:
-                    queries.append({
-                        "q": f"{title} in {city}",
-                        "location": city,
-                        "track": TrackType.TRACK_B,
-                    })
+            queries.append({
+                "q": "Quantitative Developer OR Algorithmic Trading",
+                "location": "London, United Kingdom",
+                "track": TrackType.TRACK_B,
+            })
 
         return queries
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
-        """Fetch listings from SerpApi. If API key is not present, returns realistic mock fixtures."""
+        """Fetch listings from SerpApi. If API key is not present or queries fail, returns realistic mock fixtures."""
         if not self.api_key:
-            logger.warning("[yellow]SERPAPI_API_KEY not set. Using verified Google Jobs mock fixtures.[/yellow]")
+            warning_msg = "SERPAPI_API_KEY not set. Using verified Google Jobs mock fixtures."
+            logger.warning(f"[yellow]{warning_msg}[/yellow]")
+            self.add_warning(warning_msg)
             return self._get_mock_listings()
 
         all_listings: List[Dict[str, Any]] = []
@@ -74,10 +72,20 @@ class GoogleJobsScraper(BaseScraper):
                             item["_target_track"] = q_spec["track"]
                             all_listings.append(item)
                     else:
-                        logger.error(f"SerpApi query '{q_spec['q']}' returned status {resp.status_code}")
+                        warning_msg = f"SerpApi query '{q_spec['q']}' returned HTTP {resp.status_code}"
+                        logger.error(warning_msg)
+                        self.add_warning(warning_msg)
                 except Exception as e:
-                    logger.error(f"Error querying SerpApi for '{q_spec['q']}': {e}")
+                    warning_msg = f"Error querying SerpApi for '{q_spec['q']}': {e}"
+                    logger.error(warning_msg)
+                    self.add_warning(warning_msg)
                     continue
+
+        if not all_listings:
+            warning_msg = "Google Jobs returned no live results; falling back to verified mock fixtures."
+            logger.info(warning_msg)
+            self.add_warning(warning_msg)
+            return self._get_mock_listings()
 
         return all_listings
 

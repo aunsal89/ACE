@@ -45,16 +45,22 @@ class ApifyLinkedInScraper(BaseScraper):
         return payloads
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
-        """Query Apify Actor endpoint or return verified mock listings if token not configured."""
+        """Query Apify Actor endpoint or return verified mock listings if token not configured or limit reached."""
         if not self.token:
-            logger.warning("[yellow]APIFY_API_TOKEN not set. Using verified LinkedIn guest scraper mock fixtures.[/yellow]")
+            warning_msg = "Apify API token not configured. LinkedIn sourcing operating in fallback mock mode."
+            logger.warning(f"[yellow]{warning_msg}[/yellow]")
+            self.add_warning(warning_msg)
             return self._get_mock_listings()
 
         all_listings: List[Dict[str, Any]] = []
         payloads = self.build_search_payloads()
+        quota_exceeded = False
 
         with httpx.Client(timeout=25.0) as client:
             for p in payloads:
+                if quota_exceeded:
+                    break
+
                 try:
                     resp = client.post(
                         f"{self.actor_endpoint}?token={self.token}",
@@ -71,13 +77,27 @@ class ApifyLinkedInScraper(BaseScraper):
                             for it in items:
                                 it["_target_track"] = p["track"]
                                 all_listings.append(it)
+                    elif resp.status_code in [402, 403, 429] or "limit exceeded" in resp.text.lower() or "monthly usage" in resp.text.lower():
+                        quota_exceeded = True
+                        warning_msg = (
+                            "Apify free monthly platform limit ($5.00) exceeded. "
+                            "LinkedIn live scraping paused; operating in fallback mode without breaking pipeline."
+                        )
+                        logger.warning(f"[yellow]⚠️ {warning_msg}[/yellow]")
+                        self.add_warning(warning_msg)
                     else:
-                        logger.error(f"Apify returned status {resp.status_code} for search {p['keywords']}")
+                        warning_msg = f"Apify scraper returned HTTP {resp.status_code} for search '{p['keywords']}'"
+                        logger.error(warning_msg)
+                        self.add_warning(warning_msg)
                 except Exception as e:
-                    logger.error(f"Error querying Apify: {e}")
+                    warning_msg = f"Error querying Apify for '{p['keywords']}': {e}"
+                    logger.error(warning_msg)
+                    self.add_warning(warning_msg)
                     continue
 
         if not all_listings:
+            if not quota_exceeded and not self.warnings:
+                self.add_warning("Apify returned no items; fallback mock listings loaded.")
             logger.info("Apify returned no items or reached free actor limits; falling back to verified LinkedIn mock fixtures.")
             return self._get_mock_listings()
 

@@ -282,7 +282,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             total_discovered=source_res.get("total_discovered", 0),
             new_jobs=source_res.get("new_jobs", 0),
             queued_count=queued_count,
-            staged_packages=len(pkgs)
+            staged_packages=len(pkgs),
+            warnings=source_res.get("warnings", [])
         )
 
     console.print("\n[bold green]✓ End-to-End Pipeline Execution Finished.[/bold green]")

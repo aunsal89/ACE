@@ -62,6 +62,7 @@ class SourcingManager:
         new_jobs = 0
         existing_jobs = 0
         scraper_stats: Dict[str, Dict[str, int]] = {}
+        all_warnings: List[str] = []
 
         console.print(f"[bold cyan]Starting Sourcing Pipeline for Tenant:[/bold cyan] [yellow]{self.tenant.name}[/yellow] ([green]{len(scrapers)} scrapers active[/green])")
 
@@ -87,8 +88,15 @@ class SourcingManager:
 
                 scraper_stats[s_name] = {"total": len(listings), "new": s_new, "duplicate": s_dup}
                 logger.info(f"Scraper [{s_name}]: {len(listings)} found ({s_new} new, {s_dup} existing)")
+
+                if hasattr(s, "warnings") and s.warnings:
+                    for w in s.warnings:
+                        if w not in all_warnings:
+                            all_warnings.append(w)
             except Exception as e:
-                logger.error(f"Scraper [{s_name}] failed: {e}")
+                err_msg = f"Scraper [{s_name}] failed: {e}"
+                logger.error(err_msg)
+                all_warnings.append(err_msg)
                 scraper_stats[s_name] = {"total": 0, "new": 0, "duplicate": 0, "error": 1}
 
         # Print Rich Summary Table
@@ -105,10 +113,16 @@ class SourcingManager:
         table.add_row("[bold]TOTAL[/bold]", f"[bold]{total_discovered}[/bold]", f"[bold green]{new_jobs}[/bold green]", f"[bold dim]{existing_jobs}[/bold dim]")
         console.print(table)
 
+        if all_warnings:
+            console.print("\n[bold yellow]⚠️  Channel Warnings / Degradation Alerts:[/bold yellow]")
+            for w in all_warnings:
+                console.print(f"  [yellow]• {w}[/yellow]")
+
         return {
             "total_discovered": total_discovered,
             "new_jobs": new_jobs,
             "existing_jobs": existing_jobs,
             "scraper_stats": scraper_stats,
+            "warnings": all_warnings,
             "dry_run": dry_run
         }
