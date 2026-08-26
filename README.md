@@ -1,43 +1,55 @@
-# Astro Starter Kit: Minimal
+# Ahmet Halit Ünsal — Portfolio & Autonomous Career Engine
 
-```sh
-npm create astro@latest -- --template minimal
-```
+Personal web portfolio at **[ahmethalitunsal.com](https://www.ahmethalitunsal.com)** and autonomous career sourcing orchestrator.
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+---
 
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
+## 🏛️ Architecture Overview
 
 ```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+Portfolio/
+├── web/                       # Astro 6 + React 19 + Tailwind v4 Portfolio Site
+│   ├── src/content/           # Markdown sources of truth (CV, Projects, Toolbox)
+│   └── src/components/        # Hero, Timeline, Ventures, Education, Skills, Contact
+└── career-engine/             # Autonomous Career Engine Pipeline
+    ├── src/sourcing/          # Google Jobs, LinkedIn (Apify), Defense scrapers (Baykar, Aselsan, etc.)
+    ├── src/scoring/           # LLM fit scoring & dynamic OpenRouter free-tier cascade
+    ├── src/applicator/        # Generative resume, cover letter & PDF drafting
+    ├── src/database/          # SQLite models, migrations & repository
+    ├── src/notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
+    ├── deploy/systemd/        # Systemd timer & service unit templates
+    ├── inbox/                 # Staged application packages (Human-in-the-loop)
+    └── tests/                 # Full unit test suite (32 tests)
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+---
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+## 🚀 Quickstart
 
-Any static assets, like images, can be placed in the `public/` directory.
+### Web Portfolio (`web/`)
+```bash
+cd web
+npm install
+npm run dev        # local dev server on http://localhost:4321
+npm run build      # static site generation to dist/
+```
 
-## 🧞 Commands
+### Career Engine (`career-engine/`)
+```bash
+# Execute within Conda 'lnxenv' Python environment
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py pipeline --refresh-models
 
-All commands are run from the root of the project, from a terminal:
+# Refresh and inspect top ranked OpenRouter free models
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py refresh-models
 
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
+# Run complete test suite (32 unit tests)
+/home/nsl/miniconda3/envs/lnxenv/bin/python -m pytest tests
+```
 
-## 👀 Want to learn more?
+---
 
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+## 📚 Documentation Reference
+- [`GEMINI.md`](GEMINI.md): Comprehensive architectural invariants, Conda environment specifications, LLM cascade rules, and phased development roadmaps.
+- [`CLAUDE.md`](CLAUDE.md): Frontend toolchain, Astro content collections, and typography reference.
+- [`career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`](career-engine/docs/MULTI_TENANT_ARCHITECTURE.md): Multi-tenant enterprise SaaS blueprint.
+

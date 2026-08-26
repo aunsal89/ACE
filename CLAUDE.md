@@ -34,43 +34,42 @@ npm run preview    # preview the built output
 
 ```
 portfolio/
-├── astro.config.mjs           # Astro + React + Tailwind plugin
-├── tsconfig.json              # strict + react-jsx
-├── package.json
-├── public/
-│   ├── ausnal_headshot.png    # hero portrait
-│   ├── favicon.svg / .ico
-├── src/
-│   ├── content.config.ts      # registers cv / projects / skills collections
-│   ├── styles/global.css      # Tailwind v4 entry + @theme tokens
-│   ├── layouts/Layout.astro   # <html>, fixed header, footer, slot
-│   ├── pages/index.astro      # composes the single page
-│   ├── components/
-│   │   ├── Hero.astro         # reads cv/Intro.md
-│   │   ├── Ventures.astro     # reads projects/*.md → VentureTabs
-│   │   ├── VentureTabs.tsx    # React island: tabbed project view
-│   │   ├── Timeline.astro     # reads cv/Experience.md
-│   │   ├── Education.astro    # reads cv/Education.md
-│   │   ├── Skills.astro       # reads skills/Toolbox.md
-│   │   └── Contact.astro      # reads cv/Contact.md
-│   └── content/
-│       ├── cv/
-│       │   ├── Intro.md       # hero descriptive paragraph
-│       │   ├── Experience.md  # professional experience timeline
-│       │   ├── Education.md   # degrees
-│       │   └── Contact.md     # location, email, phone
-│       ├── projects/
-│       │   ├── Project_AURA.md
-│       │   └── Project_EduTrace.md
-│       └── skills/
-│           └── Toolbox.md     # technical-toolbox table
-```
+├── CLAUDE.md                  # Claude project reference
+├── GEMINI.md                  # Gemini & overall system architecture reference
+├── README.md                  # Portfolio summary & career engine reference
+├── .env                       # Central credentials & API keys
+├── web/                       # Astro 6 + React 19 Portfolio Frontend
+│   ├── astro.config.mjs       # Astro + React + Tailwind plugin
+│   ├── tsconfig.json          # strict + react-jsx
+│   ├── package.json           # Node >=22.12.0
+│   ├── public/
+│   │   ├── ausnal_headshot.png # hero portrait
+│   │   └── favicon.svg / .ico
+│   └── src/
+│       ├── content.config.ts  # registers cv / projects / skills collections
+│       ├── styles/global.css  # Tailwind v4 entry + @theme tokens
+│       ├── layouts/Layout.astro # <html>, fixed header, footer, slot
+│       ├── pages/index.astro  # composes the single page
+│       ├── components/        # Hero, Ventures, VentureTabs, Timeline, Education, Skills, Contact
+│       └── content/
+│           ├── cv/            # Intro.md, Experience.md, Education.md, Contact.md
+│           ├── projects/      # Project_AURA.md, Project_EduTrace.md
+│           └── skills/        # Toolbox.md
+└── career-engine/             # Autonomous Career Engine Orchestrator
+    ├── run.py                 # CLI executable entry point
+    ├── config/                # config.yaml & tenants/aunsal/profile.yaml
+    ├── data/                  # SQLite DB & dynamic model cache
+    ├── deploy/systemd/        # systemd service & timer unit files
+    ├── docs/                  # MULTI_TENANT_ARCHITECTURE.md
+    ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
+    ├── src/                   # sourcing, scoring, applicator, database, notifications, utils
+    └── tests/                 # 32 unit tests
 
 ---
 
 ## Content Collections
 
-Defined in `src/content.config.ts`:
+Defined in `web/src/content.config.ts`:
 
 ```ts
 const projects = defineCollection({ loader: glob({ pattern: "**/*.md", base: "./src/content/projects" }) });

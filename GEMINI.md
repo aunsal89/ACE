@@ -119,29 +119,39 @@ portfolio/
 └── career-engine/             # Autonomous Career Engine Orchestrator
     ├── run.py                 # CLI executable entry point
     ├── config/                # config.yaml & tenants/aunsal/profile.yaml
-    ├── data/                  # SQLite database storage (career_engine.db)
+    ├── data/                  # SQLite DB & dynamic model cache (openrouter_free_models.json)
     ├── deploy/                # Systemd service & timer unit templates
     │   └── systemd/           # career-sourcing.service & career-sourcing.timer
     ├── docs/                  # Architecture specifications (MULTI_TENANT_ARCHITECTURE.md)
     ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
     ├── src/
     │   ├── sourcing/          # Google Jobs, LinkedIn Apify, Baykar, Aselsan, etc.
-    │   ├── scoring/           # LLM fit scoring & OpenRouter free-model cascade client
+    │   ├── scoring/           # LLM fit scoring & dynamic OpenRouter free-tier router
     │   ├── applicator/        # Generative resume & cover letter drafting pipeline
     │   ├── database/          # SQLite schema, models & repository
     │   ├── notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
     │   └── utils/             # Hashing, Unicode PDF renderer & logger
-    └── tests/                 # Full unit test suite (24 tests)
+    └── tests/                 # Full unit test suite (32 tests across 6 test modules)
 ```
 
 ### 4.1 Critical Codebase Rules & Invariants
 1. **Frontend Isolation (`web/`):** All Astro website source code, static assets, and package manifests reside in `web/`.
-2. **LLM Cascade Architecture:** Primary evaluation uses Google Gemini (`gemini-2.5-flash`), with cascading automatic fallback across top free models on OpenRouter (`nvidia/nemotron-3-super-120b-a12b:free`, `minimax/minimax-m2.7:free`, `google/gemma-4-31b-it:free`, etc.), followed by a deterministic rule-based evaluator.
-3. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
-4. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
-5. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
-6. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
-7. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
+2. **Dynamic OpenRouter & Resilient LLM Cascade:**
+   - **Primary Evaluator:** Google Gemini (`gemini-2.5-flash`) via `GEMINI_API_KEY`.
+   - **Dynamic Free-Tier Router (`OpenRouterManager`):** Programmatically queries `GET https://openrouter.ai/api/v1/models`, discovers active zero-cost models (`prompt == "0"`, `completion == "0"`, or `:free`), filters non-text/safety previews, and ranks via a composite heuristic formula:
+     $$\text{Score} = 0.40 \cdot \text{ContextScore} + 0.40 \cdot \text{ParamTier} + 0.20 \cdot \text{ProviderReliability}$$
+   - **Two-Level Resilience Strategy:**
+     - *Level 1 (Intra-Model):* Exponential backoff with $\pm 20\%$ randomized jitter for transient errors (HTTP 429, 500, 502, 503, 504, connection timeouts).
+     - *Level 2 (Inter-Model):* Cascading fallback to next ranked free model if retries are exhausted.
+   - **Schema Normalization & JSON Repair:** Custom extraction cleans markdown fences and trailing commas, validating strictly against typed Pydantic models (`OpportunityEvaluationSchema`).
+   - **Disk Caching:** Persisted in `data/openrouter_free_models.json` with a 6-hour TTL (`DEFAULT_CACHE_TTL = 21600`).
+   - **Deterministic Fallback:** Hard rule-based keyword & criteria evaluator ensures evaluation never fails even under total network/API outage.
+3. **Apify LinkedIn & Sourcing Resilience:** Exceeding platform monthly free quotas is treated as non-fatal. Scraper logs a clear warning, falls back to mock fixture data, and notifies the user via Telegram and Gmail with visible warning banners.
+4. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
+5. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
+6. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
+7. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
+8. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
 
 ---
 
@@ -151,7 +161,7 @@ portfolio/
   * Repository structure inspected and documented.
   * Environment dependencies verified in `lnxenv`.
   * GitHub ecosystem audited across Track A, Track B, and App Architecture.
-  * Track A authoritative CV source of truth integrated (`src/content/cv/Experience.md`).
+  * Track A authoritative CV source of truth integrated (`web/src/content/cv/Experience.md`).
   * Multi-surface content strategy (Web, LinkedIn, Tailored CVs) defined.
   * `GEMINI.md` created & synchronized.
 * [x] **Phase 2: Orchestrator Foundation & Database Setup**
@@ -159,18 +169,21 @@ portfolio/
   * Initialize SQLite schema for job tracking, deduplication, and application state.
   * Create configuration schemas (`config.yaml`) separating user profiles from engine settings.
 * [x] **Phase 3: Sourcing Modules Implementation**
-  * Google Jobs / SerpApi ingestion module.
-  * Apify 3rd-party LinkedIn Guest scraper worker.
+  * Google Jobs / SerpApi ingestion module (consolidated to 2 high-intent queries).
+  * Apify 3rd-party LinkedIn Guest scraper worker with quota limit fallback.
   * Domestic Turkish defense portal scrapers (Baykar, Aselsan, Vizyoner Genç, TUSAŞ/Roketsan).
 * [x] **Phase 4: Scoring Engine & Generative Application Drafting Pipeline**
   * Multi-track fit scoring against compensation and location filters.
+  * Dynamic OpenRouter free-tier router with two-level backoff/cascading resilience.
   * LLM-driven resume and cover letter drafting pipeline outputting to `/inbox/`.
-  * Markdown-to-PDF formatting integration.
+  * Unicode PDF formatting and rendering engine.
 * [x] **Phase 5: Production Hardening & Automation Infrastructure**
-  * Systemd service (`deploy/systemd/career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, and security sandboxing.
+  * Systemd service (`deploy/systemd/career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, security sandboxing, and `--refresh-models` hook.
   * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for daily 08:00 AM trigger with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
-  * End-to-end `pipeline` CLI subcommand implemented for single or multi-tenant batch sourcing, scoring, and drafting.
+  * Telegram Bot and Gmail SMTP notification dispatcher (`notifications.py`) with warning banner formatting.
+  * Comprehensive test suite verified (32/32 tests passing across configuration, database, hashing, router, scoring, and sourcing).
   * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
+
 
 
