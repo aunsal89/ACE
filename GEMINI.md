@@ -130,7 +130,7 @@ portfolio/
     │   ├── applicator/        # Generative resume & cover letter drafting pipeline
     │   ├── database/          # SQLite schema, models & repository
     │   ├── notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
-    │   └── utils/             # Hashing, Unicode PDF renderer & logger
+    │   └── utils/             # Hashing, Unicode PDF renderer, Git sync & logger
     └── tests/                 # Full unit test suite (32 tests across 6 test modules)
 ```
 
@@ -152,6 +152,7 @@ portfolio/
 6. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
 7. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
 8. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
+9. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/`. On pipeline completion, the orchestrator automatically commits and pushes staged files to GitHub `origin/main` for seamless remote review.
 
 ---
 
@@ -175,15 +176,17 @@ portfolio/
 * [x] **Phase 4: Scoring Engine & Generative Application Drafting Pipeline**
   * Multi-track fit scoring against compensation and location filters.
   * Dynamic OpenRouter free-tier router with two-level backoff/cascading resilience.
-  * LLM-driven resume and cover letter drafting pipeline outputting to `/inbox/`.
+  * LLM-driven resume and cover letter drafting pipeline outputting to dated and track-separated `/inbox/`.
   * Unicode PDF formatting and rendering engine.
 * [x] **Phase 5: Production Hardening & Automation Infrastructure**
   * Systemd service (`deploy/systemd/career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, security sandboxing, and `--refresh-models` hook.
-  * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for daily 08:00 AM trigger with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
+  * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for weekly trigger (every Monday at 08:00 AM) with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
   * Telegram Bot and Gmail SMTP notification dispatcher (`notifications.py`) with warning banner formatting.
+  * Automated Git synchronization (`git_sync.py`) auto-committing and pushing staged outputs to `origin/main`.
   * Comprehensive test suite verified (32/32 tests passing across configuration, database, hashing, router, scoring, and sourcing).
   * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
+
 
 
 

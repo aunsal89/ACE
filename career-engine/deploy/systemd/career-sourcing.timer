@@ -1,12 +1,12 @@
 [Unit]
-Description=Run Career Engine Autonomous Sourcing Pipeline Daily
+Description=Run Career Engine Autonomous Sourcing Pipeline Weekly
 Documentation=https://github.com/aunsal89/Portfolio
 Requires=career-sourcing.service
 
 [Timer]
 Unit=career-sourcing.service
-# Schedule daily trigger at 08:00 AM (local host time)
-OnCalendar=*-*-* 08:00:00
+# Schedule weekly trigger every Monday at 08:00 AM (local host time)
+OnCalendar=Mon *-*-* 08:00:00
 
 # Catch-up resilience: triggers immediately upon boot if host was down during schedule
 Persistent=true

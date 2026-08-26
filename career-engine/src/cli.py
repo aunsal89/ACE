@@ -296,6 +296,12 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             warnings=source_res.get("warnings", [])
         )
 
+        # Phase 5: Automated Git Sync (Push to remote repository)
+        if not getattr(args, "no_git_sync", False):
+            console.print("[bold blue]5. Syncing Staged Results with Remote Git Repository...[/bold blue]")
+            from src.utils.git_sync import auto_git_commit_and_push
+            auto_git_commit_and_push(staged_packages_count=len(pkgs))
+
     console.print("\n[bold green]✓ End-to-End Pipeline Execution Finished.[/bold green]")
 
 
@@ -365,6 +371,7 @@ def main() -> None:
     p_pipe.add_argument("--scraper", type=str, choices=list(SCRAPER_REGISTRY.keys()), help="Run specific scraper")
     p_pipe.add_argument("--dry-run", action="store_true", help="Run sourcing dry-run without persistence/scoring")
     p_pipe.add_argument("--refresh-models", action="store_true", help="Refresh OpenRouter free model cache before execution")
+    p_pipe.add_argument("--no-git-sync", action="store_true", help="Skip automatic git commit and push")
     p_pipe.set_defaults(func=cmd_pipeline)
 
     # refresh-models

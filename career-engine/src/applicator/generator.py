@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from rich.panel import Panel
@@ -46,12 +47,14 @@ class ApplicationGenerator(BaseApplicator):
 
     def generate_package(self, job: JobListing, evaluation: ScoringEvaluation) -> ApplicationPackageCreate:
         """Generate tailored Resume.md, Cover_Letter.md, LinkedIn_Guidance.md, and PDFs."""
+        track = evaluation.track
+        track_folder = "track_a_embedded" if track == "TRACK_A" else "track_b_quant"
+        date_folder = datetime.now().strftime("%Y-%m-%d")
+
         comp_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.company).strip("_").lower()
         job_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.title[:20]).strip("_").lower()
-        package_dir = self.inbox_dir / f"{comp_slug}_{job_slug}_{job.id[:8]}"
+        package_dir = self.inbox_dir / track_folder / date_folder / f"{comp_slug}_{job_slug}_{job.id[:8]}"
         package_dir.mkdir(parents=True, exist_ok=True)
-
-        track = evaluation.track
 
         # 1. Draft Tailored Resume Markdown
         resume_md = self._draft_tailored_resume(job, evaluation)
