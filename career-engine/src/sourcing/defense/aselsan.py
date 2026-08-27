@@ -10,6 +10,7 @@ from src.config import SourcingSettings, TenantProfile
 from src.database.models import JobListingCreate, JobStatus, TrackType
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
+from src.utils.http import request_with_retry
 from src.utils.logger import logger
 
 
@@ -22,13 +23,21 @@ class AselsanScraper(BaseScraper):
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
         headers = {"User-Agent": self.settings.user_agent}
+        effective_timeout = max(20.0, float(self.settings.request_timeout))
         try:
-            with httpx.Client(timeout=self.settings.request_timeout, headers=headers) as client:
-                resp = client.get(self.portal_url)
-                if resp.status_code == 200:
-                    return self._parse_html(resp.text)
-                else:
-                    return self._get_mock_listings()
+            resp = request_with_retry(
+                method="GET",
+                url=self.portal_url,
+                max_retries=self.settings.max_retries,
+                base_delay=1.5,
+                timeout=effective_timeout,
+                headers=headers,
+            )
+            if resp.status_code == 200:
+                parsed = self._parse_html(resp.text)
+                if parsed:
+                    return parsed
+            return self._get_mock_listings()
         except Exception:
             return self._get_mock_listings()
 

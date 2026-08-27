@@ -10,6 +10,7 @@ from src.config import SourcingSettings, TenantProfile
 from src.database.models import JobListingCreate, JobStatus, TrackType
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
+from src.utils.http import request_with_retry
 from src.utils.logger import logger
 
 
@@ -55,45 +56,51 @@ class ApifyLinkedInScraper(BaseScraper):
         all_listings: List[Dict[str, Any]] = []
         payloads = self.build_search_payloads()
         quota_exceeded = False
+        effective_timeout = max(30.0, float(self.settings.request_timeout))
 
-        with httpx.Client(timeout=25.0) as client:
-            for p in payloads:
-                if quota_exceeded:
-                    break
+        for p in payloads:
+            if quota_exceeded:
+                break
 
-                try:
-                    resp = client.post(
-                        f"{self.actor_endpoint}?token={self.token}",
-                        json={
-                            "title": p["keywords"],
-                            "location": p["location"],
-                            "rows": 15,
-                            "publishedAt": "r604800" # past week
-                        }
+            try:
+                resp = request_with_retry(
+                    method="POST",
+                    url=f"{self.actor_endpoint}?token={self.token}",
+                    json={
+                        "title": p["keywords"],
+                        "location": p["location"],
+                        "rows": 15,
+                        "publishedAt": "r604800" # past week
+                    },
+                    params={"timeout": 60, "memory": 512},
+                    max_retries=2,
+                    base_delay=2.0,
+                    timeout=effective_timeout,
+                    retry_statuses=(500, 502, 503, 504)  # Don't retry 402/403/429 for Apify quota limits
+                )
+                if resp.status_code in [200, 201]:
+                    items = resp.json()
+                    if isinstance(items, list):
+                        for it in items:
+                            it["_target_track"] = p["track"]
+                            all_listings.append(it)
+                elif resp.status_code in [402, 403, 429] or "limit exceeded" in resp.text.lower() or "monthly usage" in resp.text.lower():
+                    quota_exceeded = True
+                    warning_msg = (
+                        "Apify free monthly platform limit ($5.00) exceeded. "
+                        "LinkedIn live scraping paused; operating in fallback mode without breaking pipeline."
                     )
-                    if resp.status_code in [200, 201]:
-                        items = resp.json()
-                        if isinstance(items, list):
-                            for it in items:
-                                it["_target_track"] = p["track"]
-                                all_listings.append(it)
-                    elif resp.status_code in [402, 403, 429] or "limit exceeded" in resp.text.lower() or "monthly usage" in resp.text.lower():
-                        quota_exceeded = True
-                        warning_msg = (
-                            "Apify free monthly platform limit ($5.00) exceeded. "
-                            "LinkedIn live scraping paused; operating in fallback mode without breaking pipeline."
-                        )
-                        logger.warning(f"[yellow]⚠️ {warning_msg}[/yellow]")
-                        self.add_warning(warning_msg)
-                    else:
-                        warning_msg = f"Apify scraper returned HTTP {resp.status_code} for search '{p['keywords']}'"
-                        logger.error(warning_msg)
-                        self.add_warning(warning_msg)
-                except Exception as e:
-                    warning_msg = f"Error querying Apify for '{p['keywords']}': {e}"
+                    logger.warning(f"[yellow]⚠️ {warning_msg}[/yellow]")
+                    self.add_warning(warning_msg)
+                else:
+                    warning_msg = f"Apify scraper returned HTTP {resp.status_code} for search '{p['keywords']}'"
                     logger.error(warning_msg)
                     self.add_warning(warning_msg)
-                    continue
+            except Exception as e:
+                warning_msg = f"Error querying Apify for '{p['keywords']}': {e}"
+                logger.error(warning_msg)
+                self.add_warning(warning_msg)
+                continue
 
         if not all_listings:
             if not quota_exceeded and not self.warnings:

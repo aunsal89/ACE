@@ -11,6 +11,7 @@ from src.config import SourcingSettings, TenantProfile
 from src.database.models import JobListingCreate, JobStatus, TrackType
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash, normalize_company, normalize_title
+from src.utils.http import request_with_retry
 from src.utils.logger import logger
 
 
@@ -54,32 +55,40 @@ class GoogleJobsScraper(BaseScraper):
 
         all_listings: List[Dict[str, Any]] = []
         queries = self.build_search_queries()
+        effective_timeout = max(35.0, float(self.settings.request_timeout))
 
-        with httpx.Client(timeout=self.settings.request_timeout, headers={"User-Agent": self.settings.user_agent}) as client:
-            for q_spec in queries:
-                params = {
-                    "engine": "google_jobs",
-                    "q": q_spec["q"],
-                    "location": q_spec["location"],
-                    "api_key": self.api_key,
-                }
-                try:
-                    resp = client.get(self.endpoint, params=params)
-                    if resp.status_code == 200:
-                        data = resp.json()
-                        results = data.get("jobs_results", [])
-                        for item in results:
-                            item["_target_track"] = q_spec["track"]
-                            all_listings.append(item)
-                    else:
-                        warning_msg = f"SerpApi query '{q_spec['q']}' returned HTTP {resp.status_code}"
-                        logger.error(warning_msg)
-                        self.add_warning(warning_msg)
-                except Exception as e:
-                    warning_msg = f"Error querying SerpApi for '{q_spec['q']}': {e}"
+        for q_spec in queries:
+            params = {
+                "engine": "google_jobs",
+                "q": q_spec["q"],
+                "location": q_spec["location"],
+                "api_key": self.api_key,
+            }
+            try:
+                resp = request_with_retry(
+                    method="GET",
+                    url=self.endpoint,
+                    params=params,
+                    max_retries=self.settings.max_retries,
+                    base_delay=2.0,
+                    timeout=effective_timeout,
+                    headers={"User-Agent": self.settings.user_agent}
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    results = data.get("jobs_results", [])
+                    for item in results:
+                        item["_target_track"] = q_spec["track"]
+                        all_listings.append(item)
+                else:
+                    warning_msg = f"SerpApi query '{q_spec['q']}' returned HTTP {resp.status_code}"
                     logger.error(warning_msg)
                     self.add_warning(warning_msg)
-                    continue
+            except Exception as e:
+                warning_msg = f"Error querying SerpApi for '{q_spec['q']}': {e}"
+                logger.error(warning_msg)
+                self.add_warning(warning_msg)
+                continue
 
         if not all_listings:
             warning_msg = "Google Jobs returned no live results; falling back to verified mock fixtures."

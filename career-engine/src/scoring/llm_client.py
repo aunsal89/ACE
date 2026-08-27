@@ -8,7 +8,7 @@ import re
 from typing import Any, Dict, List, Optional
 import requests
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.config import LLMSettings, TenantProfile
 from src.database.models import JobListing, RecommendationType, TrackType
@@ -18,8 +18,8 @@ from src.utils.logger import logger
 
 class OpportunityEvaluationSchema(BaseModel):
     """Schema for LLM opportunity scoring."""
-    track: str
-    overall_score: float
+    track: str = "TRACK_A"
+    overall_score: float = 70.0
     comp_score: float = 0.0
     location_score: float = 0.0
     tech_stack_score: float = 0.0
@@ -29,6 +29,78 @@ class OpportunityEvaluationSchema(BaseModel):
     missing_keywords: List[str] = Field(default_factory=list)
     reasoning: str = ""
     recommendation: str = "MANUAL_REVIEW"
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_llm_dict(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        # 1. Normalize track
+        raw_track = str(data.get("track") or data.get("assigned_track") or data.get("target_track") or "TRACK_A").upper()
+        if "B" in raw_track or "QUANT" in raw_track or "TRADING" in raw_track:
+            data["track"] = "TRACK_B"
+        else:
+            data["track"] = "TRACK_A"
+
+        # 2. Normalize overall_score / score / fit_score
+        score_val = (
+            data.get("overall_score")
+            if data.get("overall_score") is not None
+            else data.get("score")
+            if data.get("score") is not None
+            else data.get("fit_score")
+            if data.get("fit_score") is not None
+            else data.get("total_score")
+            if data.get("total_score") is not None
+            else data.get("match_score")
+        )
+        if score_val is not None:
+            try:
+                data["overall_score"] = float(score_val)
+            except (ValueError, TypeError):
+                data["overall_score"] = 70.0
+        else:
+            sub_scores = [float(data.get(k, 0)) for k in ["tech_stack_score", "leadership_score", "location_score", "comp_score"] if data.get(k)]
+            data["overall_score"] = sum(sub_scores) / len(sub_scores) if sub_scores else 70.0
+
+        # Clamp overall_score to 0-100
+        data["overall_score"] = max(0.0, min(100.0, float(data["overall_score"])))
+
+        # 3. Normalize recommendation
+        raw_rec = str(data.get("recommendation") or "").upper()
+        if any(q in raw_rec for q in ["QUEUE", "ACCEPT", "APPLY", "APPROVE", "RECOMMEND"]):
+            data["recommendation"] = "QUEUE"
+        elif any(r in raw_rec for r in ["REJECT", "DECLINE", "PASS", "NO"]):
+            data["recommendation"] = "REJECT"
+        else:
+            data["recommendation"] = "MANUAL_REVIEW"
+
+        # 4. Normalize fits_criteria
+        raw_fits = data.get("fits_criteria")
+        if isinstance(raw_fits, str):
+            data["fits_criteria"] = raw_fits.strip().lower() in ["true", "yes", "1", "t", "y"]
+        elif raw_fits is None:
+            data["fits_criteria"] = data["overall_score"] >= 75.0 and data["recommendation"] != "REJECT"
+
+        # 5. Normalize lists
+        for list_field in ["matched_keywords", "missing_keywords"]:
+            val = data.get(list_field)
+            if isinstance(val, str):
+                data[list_field] = [s.strip() for s in val.split(",") if s.strip()]
+            elif not isinstance(val, list):
+                data[list_field] = []
+
+        # 6. Normalize sub-scores
+        for sub in ["comp_score", "location_score", "tech_stack_score", "leadership_score"]:
+            val = data.get(sub)
+            if val is not None:
+                try:
+                    data[sub] = max(0.0, min(100.0, float(val)))
+                except (ValueError, TypeError):
+                    data[sub] = 0.0
+
+        return data
 
 
 class ScoringLLMClient:
@@ -174,6 +246,8 @@ class ScoringLLMClient:
 
     def _evaluate_with_gemini(self, job: JobListing) -> Optional[Dict[str, Any]]:
         from google import genai
+        from google.genai import types
+
         client = genai.Client(api_key=self.gemini_key)
         prompt = f"""You are an executive career evaluation AI assessing job opportunities for Ahmet Halit Ünsal.
 Dual-track profiles:
@@ -186,25 +260,35 @@ Company: {job.company}
 Location: {job.location}
 Description: {job.description_raw}
 
-Return ONLY valid JSON with keys:
-- track: "TRACK_A" or "TRACK_B"
-- overall_score: float between 0 and 100
-- comp_score: float between 0 and 100
-- location_score: float between 0 and 100
-- tech_stack_score: float between 0 and 100
-- leadership_score: float between 0 and 100
-- fits_criteria: boolean
-- matched_keywords: list of strings
-- missing_keywords: list of strings
-- reasoning: brief concise rationale string
-- recommendation: "QUEUE", "REJECT", or "MANUAL_REVIEW"
+Return ONLY valid JSON matching this schema:
+{{
+  "track": "TRACK_A" or "TRACK_B",
+  "overall_score": float between 0 and 100,
+  "comp_score": float between 0 and 100,
+  "location_score": float between 0 and 100,
+  "tech_stack_score": float between 0 and 100,
+  "leadership_score": float between 0 and 100,
+  "fits_criteria": boolean,
+  "matched_keywords": ["keyword1", "keyword2"],
+  "missing_keywords": ["missing1"],
+  "reasoning": "concise rationale string",
+  "recommendation": "QUEUE", "REJECT", or "MANUAL_REVIEW"
+}}
 """
         model_name = self.settings.providers.get("google-genai", {}).model or "gemini-2.5-flash"
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.1,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+        )
         response = client.models.generate_content(
             model=model_name,
-            contents=prompt
+            contents=prompt,
+            config=config
         )
-        data = _clean_json_response(response.text)
+        raw_parsed = clean_and_repair_json(response.text)
+        schema_obj = OpportunityEvaluationSchema.model_validate(raw_parsed)
+        data = schema_obj.model_dump()
         data["model_used"] = f"google-genai/{model_name}"
         return data
 
@@ -213,16 +297,24 @@ Return ONLY valid JSON with keys:
         system_prompt = (
             "You are an executive career evaluation AI assessing job opportunities for Ahmet Halit Ünsal.\n"
             "Dual-track profiles:\n"
-            "Track A: Embedded Software Leadership / Directorship (15+ yrs exp, 8+ yrs managing teams up to 30 engineers, MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control, EV Inverters/BMS, Defense/Automotive in Istanbul/Ankara).\n"
-            "Track B: Quantitative Developer / Algorithmic Trading (AURA engine, CCXT, Python/C++, walk-forward optimization, execution algorithms in Europe/APAC/China, excluding US).\n\n"
-            "Score the opportunity strictly against these dual-track criteria."
+            "- Track A: Embedded Software Leadership / Directorship (15+ yrs exp, 8+ yrs managing teams up to 30 engineers, MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control, EV Inverters/BMS, Defense/Automotive in Istanbul/Ankara).\n"
+            "- Track B: Quantitative Developer / Algorithmic Trading (AURA engine, CCXT, Python/C++, walk-forward optimization, execution algorithms in Europe/APAC/China, excluding US).\n\n"
+            "Candidate Background:\n"
+            "Ahmet Halit Ünsal: 15+ years experience, 8+ years leadership, MS & BS in Electrical/Computer Engineering, creator of AURA algorithmic trading system and EduTrace platform.\n\n"
+            "Return ONLY a JSON object with keys: track, overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
         )
 
         user_content = (
+            f"Evaluate this job opportunity for Ahmet Halit Ünsal:\n"
             f"Title: {job.title}\n"
             f"Company: {job.company}\n"
             f"Location: {job.location or 'N/A'}\n"
-            f"Description: {job.description_raw or 'N/A'}\n"
+            f"Description: {job.description_raw or 'N/A'}\n\n"
+            f"Return ONLY valid JSON matching schema:\n"
+            f'{{"track": "TRACK_A", "overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
+            f'"tech_stack_score": 90.0, "leadership_score": 90.0, "fits_criteria": true, '
+            f'"matched_keywords": ["keyword1"], "missing_keywords": [], '
+            f'"reasoning": "rationale", "recommendation": "QUEUE"}}'
         )
 
         eval_obj: OpportunityEvaluationSchema = self.openrouter_manager.execute_with_fallback(

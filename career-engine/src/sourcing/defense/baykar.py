@@ -10,6 +10,7 @@ from src.config import SourcingSettings, TenantProfile
 from src.database.models import JobListingCreate, JobStatus, TrackType
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
+from src.utils.http import request_with_retry
 from src.utils.logger import logger
 
 
@@ -20,21 +21,40 @@ class BaykarScraper(BaseScraper):
         super().__init__(settings, tenant)
         self.base_url = "https://kariyer.baykartech.com"
         self.listings_url = "https://kariyer.baykartech.com/tr/ilanlar/"
+        self.candidate_urls = [
+            "https://kariyer.baykartech.com/tr/ilanlar/",
+            "https://kariyer.baykartech.com/tr/acik-pozisyonlar/",
+            "https://kariyer.baykartech.com/tr/",
+            "https://kariyer.baykartech.com/",
+        ]
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
-        """Fetch open listings from Baykar career portal."""
+        """Fetch open listings from Baykar career portal with candidate endpoint fallback and retry."""
         headers = {"User-Agent": self.settings.user_agent}
-        try:
-            with httpx.Client(timeout=self.settings.request_timeout, headers=headers) as client:
-                resp = client.get(self.listings_url)
+        effective_timeout = max(20.0, float(self.settings.request_timeout))
+
+        for target_url in self.candidate_urls:
+            try:
+                resp = request_with_retry(
+                    method="GET",
+                    url=target_url,
+                    max_retries=self.settings.max_retries,
+                    base_delay=1.5,
+                    timeout=effective_timeout,
+                    headers=headers,
+                )
                 if resp.status_code == 200:
-                    return self._parse_html(resp.text)
-                else:
-                    logger.warning(f"Baykar portal returned status {resp.status_code}. Using verified offline listings.")
-                    return self._get_mock_listings()
-        except Exception as e:
-            logger.warning(f"Could not connect to live Baykar portal ({e}). Using verified fallback listings.")
-            return self._get_mock_listings()
+                    parsed = self._parse_html(resp.text)
+                    if parsed:
+                        return parsed
+            except Exception as e:
+                logger.debug(f"Baykar candidate URL {target_url} attempt failed: {e}")
+                continue
+
+        warning_msg = "Baykar portal currently unavailable or structure modified. Operating in verified offline listings mode."
+        logger.warning(f"[yellow]{warning_msg}[/yellow]")
+        self.add_warning(warning_msg)
+        return self._get_mock_listings()
 
     def _parse_html(self, html_content: str) -> List[Dict[str, Any]]:
         soup = BeautifulSoup(html_content, "html.parser")

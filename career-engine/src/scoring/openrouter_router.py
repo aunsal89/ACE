@@ -93,11 +93,10 @@ def clean_and_repair_json(raw_text: str) -> Dict[str, Any]:
             cleaned = match.group(1).strip()
 
     # 2. Extract substring between first { and last } (or first [ and last ])
-    if not (cleaned.startswith("{") and cleaned.endswith("}")):
-        start_brace = cleaned.find("{")
-        end_brace = cleaned.rfind("}")
-        if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
-            cleaned = cleaned[start_brace:end_brace + 1]
+    start_brace = cleaned.find("{")
+    end_brace = cleaned.rfind("}")
+    if start_brace != -1 and end_brace != -1 and end_brace > start_brace:
+        cleaned = cleaned[start_brace:end_brace + 1]
 
     # 3. Direct JSON load attempt
     try:
@@ -107,12 +106,16 @@ def clean_and_repair_json(raw_text: str) -> Dict[str, Any]:
 
     # 4. Repair: Remove trailing commas before closing braces/brackets
     repaired = re.sub(r",\s*([\]}])", r"\1", cleaned)
-
-    # 5. Repair: Fix unescaped newlines in string literals
-    repaired = re.sub(r'(?<!\\)\n', r'\\n', repaired)
-
     try:
         return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+
+    # 5. Repair: Fix unescaped newlines in string literals
+    repaired_newlines = re.sub(r'(?<!\\)\n', r'\\n', repaired)
+
+    try:
+        return json.loads(repaired_newlines)
     except Exception as e:
         raise OpenRouterSchemaError(f"Failed to parse or repair JSON from model output: {e}\nRaw output:\n{raw_text[:400]}") from e
 
