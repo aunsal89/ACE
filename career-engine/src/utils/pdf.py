@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 from pathlib import Path
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
+
+# Silence benign OpenType 1904 vs 1970 epoch fontTools warnings from system TTF headers
+logging.getLogger("fontTools.ttLib.tables._h_e_a_d").setLevel(logging.ERROR)
+logging.getLogger("fontTools").setLevel(logging.ERROR)
 
 LATO_REGULAR = "/usr/share/fonts/truetype/lato/Lato-Regular.ttf"
 LATO_BOLD = "/usr/share/fonts/truetype/lato/Lato-Bold.ttf"
