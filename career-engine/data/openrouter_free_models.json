@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-26T12:23:16.262130+00:00",
+  "timestamp": "2026-08-27T12:33:21.116790+00:00",
   "ttl_seconds": 21600,
   "models": [
     {
@@ -48,6 +48,15 @@
       "provider": "google"
     },
     {
+      "id": "openrouter/free",
+      "name": "Free Models Router",
+      "context_length": 200000,
+      "score": 6.42,
+      "pricing_prompt": "0",
+      "pricing_completion": "0",
+      "provider": "openrouter"
+    },
+    {
       "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
       "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
       "context_length": 256000,
@@ -84,15 +93,6 @@
       "provider": "thinkingmachines"
     },
     {
-      "id": "openrouter/free",
-      "name": "Free Models Router",
-      "context_length": 200000,
-      "score": 6.42,
-      "pricing_prompt": "0",
-      "pricing_completion": "0",
-      "provider": "openrouter"
-    },
-    {
       "id": "nvidia/nemotron-3.5-lightning:free",
       "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
       "context_length": 1000000,
@@ -127,15 +127,6 @@
       "pricing_prompt": "0",
       "pricing_completion": "0",
       "provider": "openrouter"
-    },
-    {
-      "id": "stealth/ox-alpha",
-      "name": "Ox Alpha",
-      "context_length": 1048576,
-      "score": 6.4,
-      "pricing_prompt": "0",
-      "pricing_completion": "0",
-      "provider": "stealth"
     },
     {
       "id": "poolside/laguna-s-2.1:free",
