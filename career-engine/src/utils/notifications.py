@@ -18,15 +18,16 @@ class NotificationService:
 
     def __init__(self) -> None:
         # Telegram Settings
-        self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
-        self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+        self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'")
+        self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip().strip('"').strip("'")
 
         # SMTP (Gmail) Settings
-        self.smtp_user = os.environ.get("SMTP_USER", "").strip()
-        self.smtp_password = os.environ.get("SMTP_PASSWORD", "").strip()
-        self.notification_email = os.environ.get("NOTIFICATION_EMAIL", self.smtp_user).strip()
-        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip()
-        self.smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        self.smtp_user = os.environ.get("SMTP_USER", "").strip().strip('"').strip("'")
+        self.smtp_password = os.environ.get("SMTP_PASSWORD", "").strip().strip('"').strip("'")
+        self.notification_email = os.environ.get("NOTIFICATION_EMAIL", self.smtp_user).strip().strip('"').strip("'")
+        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip().strip('"').strip("'")
+        raw_port = os.environ.get("SMTP_PORT", "587").strip().strip('"').strip("'")
+        self.smtp_port = int(raw_port) if raw_port.isdigit() else 587
 
     @property
     def telegram_enabled(self) -> bool:

@@ -30,7 +30,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=/home/nsl/Portfolio/career-engine/data /home/nsl/Portfolio/career-engine/inbox
+ReadWritePaths=/home/nsl/Portfolio
 
 [Install]
 WantedBy=multi-user.target
