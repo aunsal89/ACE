@@ -61,6 +61,9 @@ class LLMSettings(BaseModel):
 class ScraperConfig(BaseModel):
     enabled: bool = True
     priority: int = 1
+    since_date: Optional[str] = None
+
+    model_config = {"extra": "allow"}
 
 
 class SourcingSettings(BaseModel):

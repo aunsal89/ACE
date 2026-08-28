@@ -13,6 +13,7 @@ from src.config import load_engine_config, load_tenant_profile
 from src.database.models import TrackType
 from src.database.repository import JobRepository
 from src.sourcing.google_jobs import GoogleJobsScraper
+from src.sourcing.gmail_linkedin import GmailLinkedInScraper
 from src.sourcing.apify_linkedin import ApifyLinkedInScraper
 from src.sourcing.defense.baykar import BaykarScraper
 from src.sourcing.defense.aselsan import AselsanScraper
@@ -38,6 +39,16 @@ class TestSourcing(unittest.TestCase):
                 self.assertEqual(j.source, "google_jobs")
                 self.assertTrue(len(j.deduplication_hash) == 64)
                 self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
+
+    def test_gmail_linkedin_scraper(self):
+        scraper = GmailLinkedInScraper(self.config.sourcing, self.tenant, imap_user="mock@gmail.com", imap_password="mock_password")
+        with patch.object(scraper, "fetch_raw_listings", return_value=scraper._get_mock_listings()):
+            jobs = scraper.run()
+            self.assertEqual(len(jobs), 2)
+            for j in jobs:
+                self.assertEqual(j.source, "gmail_linkedin")
+                self.assertTrue(len(j.deduplication_hash) == 64)
+                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_apify_linkedin_scraper(self):
         scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant)

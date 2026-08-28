@@ -10,6 +10,7 @@ from src.database.models import JobListing, JobListingCreate
 from src.database.repository import JobRepository
 from src.sourcing.base import BaseScraper
 from src.sourcing.google_jobs import GoogleJobsScraper
+from src.sourcing.gmail_linkedin import GmailLinkedInScraper
 from src.sourcing.apify_linkedin import ApifyLinkedInScraper
 from src.sourcing.defense.baykar import BaykarScraper
 from src.sourcing.defense.aselsan import AselsanScraper
@@ -20,6 +21,7 @@ from src.utils.logger import console, logger
 
 SCRAPER_REGISTRY: Dict[str, Type[BaseScraper]] = {
     "google_jobs": GoogleJobsScraper,
+    "gmail_linkedin": GmailLinkedInScraper,
     "apify_linkedin": ApifyLinkedInScraper,
     "baykar": BaykarScraper,
     "aselsan": AselsanScraper,

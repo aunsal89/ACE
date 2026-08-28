@@ -43,6 +43,10 @@ sourcing:
     google_jobs:
       enabled: true
       priority: 1
+    gmail_linkedin:
+      enabled: true
+      priority: 1
+      since_date: "27-Aug-2026"
     apify_linkedin:
       enabled: true
       priority: 1
