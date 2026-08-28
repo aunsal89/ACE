@@ -4,7 +4,7 @@ Autonomous career orchestration system, multi-channel job discovery, deduplicati
 
 ## Architecture Overview
 
-- **Sourcing Layer (`src/sourcing/`):** Multi-portal scrapers (Baykar, Aselsan, Vizyoner Genç, TUSAŞ, Roketsan) and global APIs (Google Jobs, Apify LinkedIn).
+- **Sourcing Layer (`src/sourcing/`):** Multi-portal scrapers (Baykar, Aselsan, Vizyoner Genç, TUSAŞ, Roketsan), global APIs (Google Jobs, Apify LinkedIn), and headless Gmail LinkedIn Job Alert email ingestion (`gmail_linkedin`).
 - **State & Deduplication (`src/database/`):** SQLite (WAL mode) schema tracking job listings through `DISCOVERED`, `EVALUATED`, `QUEUED`, `APPLIED`, `REJECTED` lifecycle states with SHA-256 deduplication hashing.
 - **Scoring Engine (`src/scoring/`):** Dual-track matching against Track A (Embedded Software Leadership/MBD) and Track B (Quantitative Developer/Algorithmic Trading AURA).
 - **Application Generator (`src/applicator/`):** Generative drafting of tailored Markdown/PDF resumes (with Education), cover letters (with Job URLs), and `Job_Details.md` into `/inbox/` staging area.

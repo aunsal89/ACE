@@ -128,13 +128,13 @@ portfolio/
     │   ├── track_a_embedded/  # Track A staged packages (Resume, Cover Letter, Job Details, PDFs)
     │   └── track_b_quant/     # Track B staged packages
     ├── src/
-    │   ├── sourcing/          # Google Jobs, LinkedIn Apify, Baykar, Aselsan, etc.
+    │   ├── sourcing/          # Google Jobs, Gmail LinkedIn IMAP, LinkedIn Apify, Baykar, Aselsan, etc.
     │   ├── scoring/           # LLM fit scoring & dynamic OpenRouter free-tier router
     │   ├── applicator/        # Generative resume & cover letter drafting pipeline
     │   ├── database/          # SQLite schema, models & repository
     │   ├── notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
     │   └── utils/             # Hashing, Unicode PDF renderer, HTML dashboard, Git sync & logger
-    └── tests/                 # Full unit test suite (34 tests across 6 test modules)
+    └── tests/                 # Full unit test suite (35 tests across 6 test modules)
 ```
 
 ### 4.1 Critical Codebase Rules & Invariants
@@ -150,14 +150,15 @@ portfolio/
    - **Disk Caching:** Persisted in `data/openrouter_free_models.json` with a 6-hour TTL (`DEFAULT_CACHE_TTL = 21600`).
    - **Deterministic Fallback:** Hard rule-based keyword & criteria evaluator ensures evaluation never fails even under total network/API outage.
 3. **Apify LinkedIn & Sourcing Resilience:** Exceeding platform monthly free quotas is treated as non-fatal. Scraper logs a clear warning, falls back to mock fixture data, and notifies the user via Telegram and Gmail with visible warning banners.
-4. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
-5. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
-6. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
-7. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
-8. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
-9. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/` accompanied by `Job_Details.md` and a self-contained HTML review dashboard at `inbox/index.html` with strictly relative paths.
-10. **PDF Rendering & Entity Normalization:** `render_markdown_to_pdf` automatically normalizes typography, decodes HTML entities (`&nbsp;` -> `" "`), converts markdown horizontal rules to vector dividers, and strips inline markdown formatting.
-11. **Comprehensive Resume & Cover Letter Synthesis:** Resumes automatically append the candidate's Education section (`Education.md`), and Cover Letters feature extensive leadership and quantitative depth with explicit Job URLs.
+4. **Headless Gmail LinkedIn Alert Ingestion (`gmail_linkedin`):** Ingests personalized LinkedIn Job Alert emails via SSL IMAP (`imap.gmail.com:993`) in `readonly=True` mode, bounding searches by `since_date` (`27-Aug-2026`). Enriches full job descriptions via public unauthenticated guest endpoint (`GET https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}`) with 100% headless execution (zero browser/GUI dependency). Automatically runs as part of `career-sourcing.service` and `run.py pipeline`.
+5. **Astro 6 Glob Loader Casing:** `glob()` lowercases entry IDs (e.g. `Intro.md` → `intro`). Always resolve entries using case-insensitive matching (`e.id.toLowerCase() === '...'`).
+6. **Heading H1 Stripping:** Markdown files begin with `# Title` for standalone readability. Components render their own section headings and strip the leading `#` with `.replace(/^#\s+.*\n+/, '')`.
+7. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
+8. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
+9. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
+10. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/` accompanied by `Job_Details.md` and a self-contained HTML review dashboard at `inbox/index.html` with strictly relative paths.
+11. **PDF Rendering & Entity Normalization:** `render_markdown_to_pdf` automatically normalizes typography, decodes HTML entities (`&nbsp;` -> `" "`), converts markdown horizontal rules to vector dividers, and strips inline markdown formatting.
+12. **Comprehensive Resume & Cover Letter Synthesis:** Resumes automatically append the candidate's Education section (`Education.md`), and Cover Letters feature extensive leadership and quantitative depth with explicit Job URLs.
 
 ---
 
@@ -176,6 +177,7 @@ portfolio/
   * Create configuration schemas (`config.yaml`) separating user profiles from engine settings.
 * [x] **Phase 3: Sourcing Modules Implementation**
   * Google Jobs / SerpApi ingestion module (consolidated to 2 high-intent queries).
+  * Headless Gmail LinkedIn Job Alert email ingestion (`gmail_linkedin`) via SSL IMAP + LinkedIn unauthenticated guest endpoint.
   * Apify 3rd-party LinkedIn Guest scraper worker with quota limit fallback.
   * Domestic Turkish defense portal scrapers (Baykar, Aselsan, Vizyoner Genç, TUSAŞ/Roketsan).
 * [x] **Phase 4: Scoring Engine & Generative Application Drafting Pipeline**
@@ -189,7 +191,7 @@ portfolio/
   * Telegram Bot and Gmail SMTP notification dispatcher (`notifications.py`) with warning banner formatting.
   * Automated Git synchronization (`git_sync.py`) auto-committing and pushing staged outputs and `inbox/index.html` dashboard to `origin/main`.
   * Systematic review dashboard refresh integrated into every `career-sourcing.service` run for instant local review via `git pull`.
-  * Comprehensive test suite verified (34/34 tests passing across configuration, database, hashing, router, scoring, PDF rendering, and sourcing).
+  * Comprehensive test suite verified (35/35 tests passing across configuration, database, hashing, router, scoring, PDF rendering, and sourcing).
   * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
 

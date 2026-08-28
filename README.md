@@ -13,6 +13,7 @@ The Career Engine runs autonomously on host `vsmlnx` (Ubuntu x86_64), discoverin
 |                                    1. MULTI-CHANNEL SOURCING                                       |
 |  - Domestic Defense Scrapers: Baykar, ASELSAN, Vizyoner Genç, TUSAŞ, Roketsan                      |
 |  - Global Job Board: Google Jobs (SerpApi - 2 high-intent targeted queries)                        |
+|  - LinkedIn Email Alerts: Headless Gmail IMAP Sourcing + Unauthenticated Guest Details API         |
 |  - Professional Network: LinkedIn Guest Scraper (Apify with mock fixture fallback)                 |
 +----------------------------------------------------------------------------------------------------+
                                                   │
@@ -82,13 +83,13 @@ portfolio/
     │       └── YYYY-MM-DD/
     │           └── <company>_<role>_<id>/
     ├── src/                   # Core Python pipeline modules
-    │   ├── sourcing/          # Multi-channel job board and domestic portal scrapers
+    │   ├── sourcing/          # Multi-channel scrapers (Defense, Google Jobs, Gmail LinkedIn, Apify)
     │   ├── scoring/           # LLM fit scorer & dynamic OpenRouter free-tier router
     │   ├── applicator/        # Markdown & Unicode PDF generator with Education integration
     │   ├── database/          # SQLite models, repository & deduplication
     │   ├── notifications/     # Telegram & Gmail notification dispatcher
     │   └── utils/             # Dashboard generator, Unicode PDF renderer, Hashing & Git sync
-    └── tests/                 # Full unit test suite (34 unit tests)
+    └── tests/                 # Full unit test suite (35 unit tests)
 ```
 
 ---
@@ -241,4 +242,4 @@ APIFY_API_TOKEN="apify_api_xxx"          # LinkedIn Guest Scraper (falls back to
 /home/nsl/miniconda3/envs/lnxenv/bin/python -m pytest /home/nsl/Portfolio/career-engine/tests
 ```
 
-Full suite passes **34 unit tests** across configuration, database CRUD, deduplication hashing, OpenRouter dynamic router resilience, scoring, PDF rendering with HTML entity decoding, Job Details generation, dashboard creation, and multi-channel sourcing.
+Full suite passes **35 unit tests** across configuration, database CRUD, deduplication hashing, OpenRouter dynamic router resilience, scoring, PDF rendering with HTML entity decoding, Job Details generation, dashboard creation, and multi-channel sourcing (including headless Gmail LinkedIn email ingestion).
