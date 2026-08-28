@@ -1,7 +1,7 @@
 # Cover Letter
 
 **Candidate:** Ahmet Halit Ünsal  
-**Contact:** ahmethalitunsal@gmail.com | +90 (553) 482 72 89 | Ankara, Turkey  
+**Contact:** ahmethalitunsal@gmail.com | +90 (552) 232 81 44 | Istanbul, Turkey  
 **Position:** Traction Control & Inverter Firmware Lead  
 **Target Organization:** ROKETSAN (Ankara (Lalahan), Turkey)  
 **Job URL:** https://www.roketsan.com.tr/kariyer/inverter-firmware-lead-402  

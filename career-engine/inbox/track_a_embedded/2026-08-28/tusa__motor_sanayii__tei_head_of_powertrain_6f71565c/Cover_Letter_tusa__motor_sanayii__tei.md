@@ -1,7 +1,7 @@
 # Cover Letter
 
 **Candidate:** Ahmet Halit Ünsal  
-**Contact:** ahmethalitunsal@gmail.com | +90 (553) 482 72 89 | Ankara, Turkey  
+**Contact:** ahmethalitunsal@gmail.com | +90 (552) 232 81 44 | Istanbul, Turkey  
 **Position:** Head of Powertrain & ECU Embedded Software Architecture  
 **Target Organization:** TUSAŞ Motor Sanayii (TEI) (Eskişehir / Ankara, Turkey)  
 **Job URL:** https://www.tei.com.tr/kariyer/ecu-software-lead-401  

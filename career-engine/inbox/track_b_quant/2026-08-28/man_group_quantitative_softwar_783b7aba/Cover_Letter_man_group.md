@@ -1,7 +1,7 @@
 # Cover Letter
 
 **Candidate:** Ahmet Halit Ünsal  
-**Contact:** ahmethalitunsal@gmail.com | +90 (553) 482 72 89 | Ankara, Turkey  
+**Contact:** ahmethalitunsal@gmail.com | +90 (552) 232 81 44 | Istanbul, Turkey  
 **Position:** Quantitative Software Engineer - Algorithmic Execution  
 **Target Organization:** Man Group (London, United Kingdom)  
 **Job URL:** https://www.man.com/careers/quant-engineer-01  

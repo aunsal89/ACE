@@ -1,5 +1,5 @@
 # Ahmet Halit Ünsal
-**Ankara, Turkey** | **Email:** ahmethalitunsal@gmail.com | **Phone:** +90 (553) 482 72 89  
+**Istanbul, Turkey** | **Email:** ahmethalitunsal@gmail.com | **Phone:** +90 (552) 232 81 44  
 **Website:** https://www.ahmethalitunsal.com | **GitHub:** https://github.com/aunsal89 | **LinkedIn:** https://www.linkedin.com/in/ahmet-halit-unsal/
 
 ---

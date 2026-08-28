@@ -1,7 +1,7 @@
 # Cover Letter
 
 **Candidate:** Ahmet Halit Ünsal  
-**Contact:** ahmethalitunsal@gmail.com | +90 (553) 482 72 89 | Ankara, Turkey  
+**Contact:** ahmethalitunsal@gmail.com | +90 (552) 232 81 44 | Istanbul, Turkey  
 **Position:** Quantitative Analyst – AI & Next-Gen Algorithmic Trading Platforms  
 **Target Organization:** Professional (London, United Kingdom)  
 **Job URL:** https://jobs.citi.com/job/london/quantitative-analyst-ai-and-next-gen-algorithmic-trading-platforms/287/99061956416  

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-08-27T12:59:26.697744+00:00",
+  "timestamp": "2026-08-28T14:04:43.115710+00:00",
   "ttl_seconds": 21600,
   "models": [
     {
@@ -127,6 +127,15 @@
       "pricing_prompt": "0",
       "pricing_completion": "0",
       "provider": "openrouter"
+    },
+    {
+      "id": "inclusionai/ling-3.0-flash-fin:free",
+      "name": "Ling 3.0 Flash Fin (free)",
+      "context_length": 262144,
+      "score": 6.0,
+      "pricing_prompt": "0",
+      "pricing_completion": "0",
+      "provider": "inclusionai"
     },
     {
       "id": "poolside/laguna-s-2.1:free",
