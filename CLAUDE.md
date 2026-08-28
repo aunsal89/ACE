@@ -56,14 +56,17 @@ portfolio/
 │           ├── projects/      # Project_AURA.md, Project_EduTrace.md
 │           └── skills/        # Toolbox.md
 └── career-engine/             # Autonomous Career Engine Orchestrator
-    ├── run.py                 # CLI executable entry point
+    ├── run.py                 # CLI executable entry point (source, score, draft, approve, reject, dashboard)
     ├── config/                # config.yaml & tenants/aunsal/profile.yaml
     ├── data/                  # SQLite DB & dynamic model cache
     ├── deploy/systemd/        # systemd service & timer unit files
     ├── docs/                  # MULTI_TENANT_ARCHITECTURE.md
-    ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
+    ├── inbox/                 # Staged application packages & review dashboard
+    │   ├── index.html         # Self-contained, responsive HTML review dashboard
+    │   ├── track_a_embedded/  # Track A staged packages (CV, Cover Letter, Job_Details, PDFs)
+    │   └── track_b_quant/     # Track B staged packages
     ├── src/                   # sourcing, scoring, applicator, database, notifications, utils
-    └── tests/                 # 32 unit tests
+    └── tests/                 # 34 unit tests
 
 ---
 

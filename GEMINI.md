@@ -123,15 +123,18 @@ portfolio/
     ├── deploy/                # Systemd service & timer unit templates
     │   └── systemd/           # career-sourcing.service & career-sourcing.timer
     ├── docs/                  # Architecture specifications (MULTI_TENANT_ARCHITECTURE.md)
-    ├── inbox/                 # Staged tailored CVs, Cover Letters & PDFs
+    ├── inbox/                 # Staged application packages & review dashboard
+    │   ├── index.html         # Self-contained, responsive HTML review dashboard
+    │   ├── track_a_embedded/  # Track A staged packages (Resume, Cover Letter, Job Details, PDFs)
+    │   └── track_b_quant/     # Track B staged packages
     ├── src/
     │   ├── sourcing/          # Google Jobs, LinkedIn Apify, Baykar, Aselsan, etc.
     │   ├── scoring/           # LLM fit scoring & dynamic OpenRouter free-tier router
     │   ├── applicator/        # Generative resume & cover letter drafting pipeline
     │   ├── database/          # SQLite schema, models & repository
     │   ├── notifications/     # Telegram Bot & Gmail SMTP notification dispatcher
-    │   └── utils/             # Hashing, Unicode PDF renderer, Git sync & logger
-    └── tests/                 # Full unit test suite (32 tests across 6 test modules)
+    │   └── utils/             # Hashing, Unicode PDF renderer, HTML dashboard, Git sync & logger
+    └── tests/                 # Full unit test suite (34 tests across 6 test modules)
 ```
 
 ### 4.1 Critical Codebase Rules & Invariants
@@ -152,7 +155,9 @@ portfolio/
 6. **Tailwind v4 Native CSS:** No `tailwind.config.js`. Tokens live in `web/src/styles/global.css` under `@theme`. Typography plugin is declared via `@plugin "@tailwindcss/typography"`.
 7. **Header Navigation Contact Link:** The header "Contact" button must link to `#contact` (not `mailto:`).
 8. **Timeline DOM Selectors:** `Timeline.astro` uses scoped styles targeting `h3` and `h3 + p`. Preserve heading structure in `Experience.md`.
-9. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/`. On pipeline completion, the orchestrator automatically commits and pushes staged files to GitHub `origin/main` for seamless remote review.
+9. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/` accompanied by `Job_Details.md` and a self-contained HTML review dashboard at `inbox/index.html` with strictly relative paths.
+10. **PDF Rendering & Entity Normalization:** `render_markdown_to_pdf` automatically normalizes typography, decodes HTML entities (`&nbsp;` -> `" "`), converts markdown horizontal rules to vector dividers, and strips inline markdown formatting.
+11. **Comprehensive Resume & Cover Letter Synthesis:** Resumes automatically append the candidate's Education section (`Education.md`), and Cover Letters feature extensive leadership and quantitative depth with explicit Job URLs.
 
 ---
 
@@ -182,8 +187,9 @@ portfolio/
   * Systemd service (`deploy/systemd/career-sourcing.service`) configured with Conda `lnxenv` interpreter, error recovery, unbuffered journal logging, security sandboxing, and `--refresh-models` hook.
   * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for weekly trigger (every Monday at 08:00 AM) with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
   * Telegram Bot and Gmail SMTP notification dispatcher (`notifications.py`) with warning banner formatting.
-  * Automated Git synchronization (`git_sync.py`) auto-committing and pushing staged outputs to `origin/main`.
-  * Comprehensive test suite verified (32/32 tests passing across configuration, database, hashing, router, scoring, and sourcing).
+  * Automated Git synchronization (`git_sync.py`) auto-committing and pushing staged outputs and `inbox/index.html` dashboard to `origin/main`.
+  * Systematic review dashboard refresh integrated into every `career-sourcing.service` run for instant local review via `git pull`.
+  * Comprehensive test suite verified (34/34 tests passing across configuration, database, hashing, router, scoring, PDF rendering, and sourcing).
   * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
 

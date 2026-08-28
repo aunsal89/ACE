@@ -29,14 +29,23 @@ The Career Engine runs autonomously on host `vsmlnx` (Ubuntu x86_64), discoverin
 +----------------------------------------------------------------------------------------------------+
 |                               3. APPLICATION PACKAGE GENERATION                                    |
 |  - Outputs staged in /inbox/<track>/<YYYY-MM-DD>/<company>_<role>_<id>/                            |
-|  - Generated Assets: Tailored Resume (.md + .pdf), Cover Letter (.md + .pdf), LinkedIn Guidance   |
+|  - Generated Assets: Tailored Resume (.md + .pdf), Cover Letter (.md + .pdf),                      |
+|                      LinkedIn Guidance (.md), Job Details (.md)                                    |
 +----------------------------------------------------------------------------------------------------+
-                         │                                                  │
-                         ▼                                                  ▼
+                                 │
+                                 ▼
++----------------------------------------------------------------------------------------------------+
+|                               4. VISUAL HTML REVIEW DASHBOARD                                      |
+|  - Self-contained, responsive dashboard at /inbox/index.html                                       |
+|  - Path-independent strictly relative links to folders, PDF resumes, and cover letters             |
+|  - Search, track filtering, and one-click copy buttons for terminal approval/rejection commands     |
++----------------------------------------------------------------------------------------------------+
+                          │                                                  │
+                          ▼                                                  ▼
 +------------------------------------+             +-------------------------------------------------+
-|     4. REAL-TIME NOTIFICATIONS     |             |         5. AUTOMATED GIT SYNCHRONIZATION        |
-|  - Telegram Bot: Instant summary   |             |  - Staged packages auto-committed & pushed     |
-|  - Gmail SMTP: Styled HTML report  |             |  - Fetch from any PC via `git pull origin main` |
+|     5. REAL-TIME NOTIFICATIONS     |             |         6. AUTOMATED GIT SYNCHRONIZATION        |
+|  - Telegram Bot: Instant summary   |             |  - Staged packages & index.html auto-pushed     |
+|  - Gmail SMTP: Styled HTML report  |             |  - Systematic refresh: review via `git pull`    |
 +------------------------------------+             +-------------------------------------------------+
 ```
 
@@ -48,7 +57,7 @@ The Career Engine runs autonomously on host `vsmlnx` (Ubuntu x86_64), discoverin
 portfolio/
 ├── CLAUDE.md                  # Claude frontend reference
 ├── GEMINI.md                  # Comprehensive architectural reference & system directives
-├── README.md                  # User guide & operations manual
+├── README.md                  # Operational guide, CLI use cases & user reference
 ├── .env                       # Central credentials & API keys
 ├── web/                       # Astro 6 + React 19 Portfolio Frontend (ahmethalitunsal.com)
 │   ├── src/content/           # Master Markdown sources of truth (CV, Projects, Toolbox)
@@ -58,14 +67,16 @@ portfolio/
     ├── config/                # config.yaml & tenants/aunsal/profile.yaml
     ├── data/                  # SQLite DB (career_engine.db) & OpenRouter cache (openrouter_free_models.json)
     ├── deploy/systemd/        # Systemd timer & service unit templates
-    ├── inbox/                 # Staged application packages organized by Track and Date
+    ├── inbox/                 # Staged application packages & review hub
+    │   ├── index.html         # Self-contained HTML review dashboard (open in browser)
     │   ├── track_a_embedded/  # Track A: Embedded Leadership (MBD, ISO 26262, AUTOSAR, Motor Control)
     │   │   └── YYYY-MM-DD/    # Dated batch run folder
     │   │       └── <company>_<role>_<id>/
-    │   │           ├── Resume_Ahmet_Halit_Unsal_<company>.md
-    │   │           ├── Resume_Ahmet_Halit_Unsal_<company>.pdf
+    │   │           ├── Resume_Ahmet_Halit_Ünsal_<company>.md
+    │   │           ├── Resume_Ahmet_Halit_Ünsal_<company>.pdf
     │   │           ├── Cover_Letter_<company>.md
     │   │           ├── Cover_Letter_<company>.pdf
+    │   │           ├── Job_Details.md
     │   │           └── LinkedIn_Guidance.md
     │   └── track_b_quant/     # Track B: Quantitative Development (AURA, Algorithmic Execution)
     │       └── YYYY-MM-DD/
@@ -73,11 +84,11 @@ portfolio/
     ├── src/                   # Core Python pipeline modules
     │   ├── sourcing/          # Multi-channel job board and domestic portal scrapers
     │   ├── scoring/           # LLM fit scorer & dynamic OpenRouter free-tier router
-    │   ├── applicator/        # Markdown & Unicode PDF generator
+    │   ├── applicator/        # Markdown & Unicode PDF generator with Education integration
     │   ├── database/          # SQLite models, repository & deduplication
     │   ├── notifications/     # Telegram & Gmail notification dispatcher
-    │   └── utils/             # Hashing, Unicode PDF renderer & Git sync
-    └── tests/                 # Full unit test suite (32 unit tests)
+    │   └── utils/             # Dashboard generator, Unicode PDF renderer, Hashing & Git sync
+    └── tests/                 # Full unit test suite (34 unit tests)
 ```
 
 ---
@@ -95,103 +106,90 @@ portfolio/
   - **Track B (Quantitative Developer):** AURA algorithmic architecture, CCXT, walk-forward optimization, execution algorithms across Europe, APAC, and China (excluding US).
 - If Gemini or OpenRouter encounters rate limits (HTTP 429) or transient outages, the system executes **Level 1 exponential backoff with jitter** and **Level 2 inter-model cascading fallback** across top free models (`nvidia/nemotron`, `minimax`, `google/gemma`). If all APIs fail, it transparently falls back to a deterministic offline evaluator.
 
-### 3. Application Generation & Remote Git Sync
+### 3. Application Generation & Systematic Dashboard Refresh
 - For every job scored $\ge 80$ (`QUEUED`), the engine drafts:
-  - Tailored Executive Resume in Markdown and high-resolution Unicode PDF.
-  - Custom, metric-driven Cover Letter in Markdown and Unicode PDF.
-  - LinkedIn Headline & Outreach Guidance prompts.
-- Packages are saved into `/inbox/<track>/<YYYY-MM-DD>/<company>_<role>_<id>/`.
-- **Automated Git Push:** On pipeline completion, the server automatically commits the staged files and pushes to GitHub `origin/main`. You can inspect and review formatted PDFs from any laptop or mobile device by running `git pull origin main`.
+  - **Tailored Executive Resume** (Markdown + PDF) with complete professional experience and candidate education background appended at the end.
+  - **Comprehensive Cover Letter** (Markdown + PDF) detailing leadership scaling, functional safety, powertrain architectures, or AURA quantitative trading systems, including direct Job URLs.
+  - **`Job_Details.md`** containing original URLs, review action commands, AI match scoring rationale, and description snippets.
+  - **LinkedIn Guidance** prompts for targeted outreach.
+- **Visual HTML Review Dashboard:** Staged packages and state changes systematically regenerate `inbox/index.html`.
+- **Automated Git Push:** On pipeline completion, the server automatically commits all staged packages and `inbox/index.html` to GitHub `origin/main`.
 
-### 4. Notifications & Alerts
-- **Telegram Bot:** Sends an immediate digest showing newly discovered jobs, queued matches, staged application links, and any non-fatal quota warnings (e.g. Apify free tier limit).
-- **Gmail SMTP:** Delivers a cleanly styled HTML email report summarizing pipeline metrics and staged applications.
-
----
-
-## 📋 Application Tracking & Review Workflow
-
-How to track which opportunities are new, queued, applied, or rejected:
-
-```text
-[DISCOVERED] ──(Score ≥ 80)──► [QUEUED] ──(Drafting)──► [STAGED IN /INBOX/]
-                                                                │
-                                   ┌────────────────────────────┴────────────────────────────┐
-                                   ▼                                                         ▼
-                           [User Approves & Applies]                                 [User Rejects]
-                           python run.py approve <job_id>                     python run.py reject <job_id>
-                                   │                                                         │
-                                   ▼                                                         ▼
-                               [APPLIED]                                                 [REJECTED]
-```
-
-### Review Commands
-
-```bash
-# 1. View overall database metrics and state breakdown
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py status
-
-# 2. List all staged application packages in /inbox/ with their IDs and paths
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-inbox
-
-# 3. List jobs filtered by status (QUEUED, APPLIED, REJECTED, DISCOVERED)
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-jobs --status QUEUED
-
-# 4. After submitting an application on a company portal, mark it as APPLIED:
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py approve <job_id>
-
-# 5. If an opportunity does not match personal preferences, mark it as REJECTED:
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py reject <job_id>
-```
+### 4. Remote Review Workflow via `git pull`
+- Each weekly automated execution through `career-sourcing.service` systematically regenerates `inbox/index.html` and pushes changes to GitHub.
+- When you run `git pull origin main` on any local PC or laptop, you can immediately double-click `career-engine/inbox/index.html` in your browser. All links to folders and PDFs work seamlessly because paths are strictly relative.
 
 ---
 
-## 🧪 Single Manual Trial Run Guide
+## 🎯 Practical CLI Use Cases & Operational Playbook
 
-To test the entire pipeline end-to-end and observe the results:
+All commands must be executed using the designated Conda Python interpreter `/home/nsl/miniconda3/envs/lnxenv/bin/python` from the `career-engine/` directory.
 
-### Step 1: Trigger the Service or CLI Pipeline
-
-**Option A: Via Systemd (Production execution mode)**
+### Use Case 1: Open and Refresh the HTML Review Dashboard
+To regenerate or inspect the self-contained visual review hub at any time:
 ```bash
-sudo systemctl start career-sourcing.service
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py dashboard
 ```
+*Action:* Open `career-engine/inbox/index.html` in any web browser to view, search, filter, and review all opportunities across Track A and Track B.
 
-**Option B: Via Python CLI directly**
+### Use Case 2: Run the Full Autonomous Pipeline Manually
+To trigger a complete run (sourcing $\to$ model cache refresh $\to$ scoring $\to$ package drafting $\to$ dashboard regeneration $\to$ notification $\to$ git push):
 ```bash
-cd /home/nsl/Portfolio/career-engine
 /home/nsl/miniconda3/envs/lnxenv/bin/python run.py pipeline --refresh-models
 ```
 
-### Step 2: What to Watch For & Expected Results
+### Use Case 3: Review and Approve a Staged Opportunity
+After applying to an opportunity on a company portal, mark it as `APPLIED` using its 8-character ID (found in the folder name or copied with one click from the HTML dashboard):
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py approve f82e8bc8
+```
+*Effect:* Atomically updates the database state to `APPLIED`, records an audit log, and immediately refreshes `inbox/index.html`.
 
-1. **Systemd Journal Logs:**
-   ```bash
-   journalctl -u career-sourcing.service -f
-   ```
-   *Expected output:* Sourcing listing count → OpenRouter model refresh → Scoring evaluations → Staged inbox packages → Notification dispatch → Git auto-commit & push.
+### Use Case 4: Reject an Opportunity
+If an opportunity does not match current preferences:
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py reject f82e8bc8
+```
+*Effect:* Updates database state to `REJECTED`, records audit history, and updates `inbox/index.html`.
 
-2. **Generated Inbox Files (`career-engine/inbox/`):**
-   ```bash
-   find career-engine/inbox/ -type f
-   ```
-   *Expected files created:*
-   - `career-engine/inbox/track_a_embedded/YYYY-MM-DD/<comp>_<role>_<id>/Resume_Ahmet_Halit_Unsal_<comp>.pdf`
-   - `career-engine/inbox/track_a_embedded/YYYY-MM-DD/<comp>_<role>_<id>/Cover_Letter_<comp>.pdf`
-   - `career-engine/inbox/track_a_embedded/YYYY-MM-DD/<comp>_<role>_<id>/LinkedIn_Guidance.md`
+### Use Case 5: Draft Staged Packages for Queued Jobs
+To generate or re-draft resumes, cover letters, and `Job_Details.md` for all QUEUED opportunities:
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py draft
+```
 
-3. **Notifications Received:**
-   - **Telegram:** Message from your bot with total listings discovered, queued count, and staged packages.
-   - **Gmail:** Email to `aunsal89@gmail.com` with a styled HTML execution report.
+### Use Case 6: Inspect System Status and Opportunity Metrics
+To inspect database aggregates, active tenant profile, and job counts across states:
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py status
+```
 
-4. **Remote GitHub Repository:**
-   - On your local PC/Mac: Run `git pull origin main`. The generated PDFs, cover letters, and guidance documents will be immediately available locally for review.
+### Use Case 7: Filter and Query Job Opportunities
+```bash
+# List all Track A Embedded Leadership jobs ready for review
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-jobs --status QUEUED --track TRACK_A
+
+# List all Track B Quant Trading opportunities
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-jobs --track TRACK_B
+```
+
+### Use Case 8: Refresh OpenRouter Free Model Discovery Cache
+To query OpenRouter's dynamic model catalog, rank free zero-cost models, and update `data/openrouter_free_models.json`:
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py refresh-models --limit 10
+```
+
+### Use Case 9: Test Notification Channels (Telegram & Gmail)
+To verify your `.env` Telegram bot token and Gmail SMTP credentials:
+```bash
+/home/nsl/miniconda3/envs/lnxenv/bin/python run.py test-notify
+```
 
 ---
 
 ## ⚙️ Scheduling & Automation (`systemd`)
 
-The system uses a weekly `systemd` timer configured for **every Monday at 08:00 AM**:
+The system runs automatically via a weekly `systemd` timer configured for **every Monday at 08:00 AM**:
 
 ```bash
 # 1. Install unit files
@@ -208,8 +206,9 @@ sudo systemctl enable --now career-sourcing.timer
 systemctl list-timers | grep career-sourcing
 ```
 
-- **Catch-up resilience (`Persistent=true`):** If `vsmlnx` is offline Monday at 08:00 AM, the job triggers immediately upon boot.
+- **Catch-up resilience (`Persistent=true`):** If `vsmlnx` is offline Monday at 08:00 AM, the pipeline triggers immediately upon boot.
 - **Jitter protection (`RandomizedDelaySec=300`):** Adds a random 0–5 minute offset to prevent thundering herd API requests.
+- **Systematic Git Push & Dashboard Sync:** Every scheduled run updates `inbox/index.html` and pushes to `origin/main` so that `git pull` from any device gives the latest visual state.
 
 ---
 
@@ -242,4 +241,4 @@ APIFY_API_TOKEN="apify_api_xxx"          # LinkedIn Guest Scraper (falls back to
 /home/nsl/miniconda3/envs/lnxenv/bin/python -m pytest /home/nsl/Portfolio/career-engine/tests
 ```
 
-Full suite passes 32 unit tests across configuration, database, deduplication hashing, OpenRouter dynamic router resilience, scoring, PDF rendering, and multi-channel sourcing.
+Full suite passes **34 unit tests** across configuration, database CRUD, deduplication hashing, OpenRouter dynamic router resilience, scoring, PDF rendering with HTML entity decoding, Job Details generation, dashboard creation, and multi-channel sourcing.

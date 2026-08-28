@@ -152,6 +152,56 @@ class TestPhase4(unittest.TestCase):
             self.assertTrue(Path(pkg.cover_letter_pdf_path).exists())
             self.assertTrue(Path(pkg.linkedin_prompt_path).exists())
 
+            # Verify Job_Details.md generated
+            job_details_path = Path(pkg.resume_md_path).parent / "Job_Details.md"
+            self.assertTrue(job_details_path.exists())
+            details_content = job_details_path.read_text(encoding="utf-8")
+            self.assertIn("approve", details_content)
+            self.assertIn("reject", details_content)
+            self.assertIn(saved_job.id[:8], details_content)
+
+            # Verify Education section in Resume
+            resume_content = Path(pkg.resume_md_path).read_text(encoding="utf-8")
+            self.assertIn("## Education", resume_content)
+            self.assertIn("Istanbul Technical University", resume_content)
+            self.assertIn("Iowa State University", resume_content)
+
+            # Verify Cover Letter content and Job URL
+            cover_content = Path(pkg.cover_letter_md_path).read_text(encoding="utf-8")
+            self.assertIn("**Job URL:**", cover_content)
+            self.assertIn("15 years of professional engineering experience", cover_content)
+            self.assertIn("ISO 26262 ASIL D", cover_content)
+
+    def test_pdf_nbsp_and_entity_cleaning(self):
+        from src.utils.pdf import clean_text_for_pdf, strip_markdown_inline
+        raw = "### Team Leader &nbsp;|&nbsp; ECEMTAG"
+        cleaned = clean_text_for_pdf(raw)
+        stripped = strip_markdown_inline(cleaned[4:])
+        self.assertEqual(stripped, "Team Leader | ECEMTAG")
+
+    def test_dashboard_generation(self):
+        from src.utils.dashboard import generate_inbox_dashboard
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_config = self.config.model_copy(deep=True)
+            test_config.database.db_path = Path(tmp_dir) / "test_dash.db"
+            test_config.engine.inbox_dir = Path(tmp_dir) / "inbox"
+            test_config.engine.inbox_dir.mkdir(parents=True, exist_ok=True)
+
+            repo = JobRepository(test_config.database.db_path)
+            repo.register_or_update_tenant(
+                tenant_id=self.tenant.tenant_id,
+                name=self.tenant.name,
+                email=self.tenant.email,
+                config_path=str(self.config.multi_tenancy.tenants_dir / self.tenant.tenant_id / "profile.yaml")
+            )
+
+            html_path = generate_inbox_dashboard(config=test_config, tenant=self.tenant)
+            self.assertTrue(html_path.exists())
+            html_text = html_path.read_text(encoding="utf-8")
+            self.assertIn("Career Engine Review Dashboard", html_text)
+            self.assertIn(self.tenant.name, html_text)
+            self.assertIn("run.py approve", html_text)
+
 
 if __name__ == "__main__":
     unittest.main()

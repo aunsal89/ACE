@@ -17,6 +17,7 @@ from src.sourcing.manager import SourcingManager, SCRAPER_REGISTRY
 from src.scoring.scorer import OpportunityScorer
 from src.scoring.openrouter_router import OpenRouterManager
 from src.applicator.generator import ApplicationGenerator
+from src.utils.dashboard import generate_inbox_dashboard
 from src.utils.hashing import generate_deduplication_hash, normalize_company, normalize_title
 from src.utils.notifications import NotificationService
 
@@ -184,6 +185,9 @@ def cmd_approve(args: argparse.Namespace) -> None:
     )
     if job:
         console.print(f"[bold green]✓ Application for {job.company} - {job.title} marked as APPLIED.[/bold green]")
+        # Regenerate inbox dashboard
+        dash_path = generate_inbox_dashboard(config=config, tenant=tenant)
+        console.print(f"[bold green]✓ Review dashboard refreshed at:[/bold green] {dash_path}")
     else:
         console.print(f"[bold red]Could not find job with ID {args.job_id}[/bold red]")
 
@@ -203,8 +207,19 @@ def cmd_reject(args: argparse.Namespace) -> None:
     )
     if job:
         console.print(f"[bold yellow]Job {job.company} - {job.title} marked as REJECTED.[/bold yellow]")
+        # Regenerate inbox dashboard
+        dash_path = generate_inbox_dashboard(config=config, tenant=tenant)
+        console.print(f"[bold green]✓ Review dashboard refreshed at:[/bold green] {dash_path}")
     else:
         console.print(f"[bold red]Could not find job with ID {args.job_id}[/bold red]")
+
+
+def cmd_dashboard(args: argparse.Namespace) -> None:
+    """Generate or refresh the HTML review dashboard in /inbox/."""
+    config = load_engine_config()
+    tenant = load_tenant_profile(config=config)
+    dash_path = generate_inbox_dashboard(config=config, tenant=tenant)
+    console.print(f"[bold green]✓ HTML review dashboard generated successfully at:[/bold green] {dash_path}")
 
 
 def cmd_test_dedup(args: argparse.Namespace) -> None:
@@ -296,9 +311,12 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
             warnings=source_res.get("warnings", [])
         )
 
-        # Phase 5: Automated Git Sync (Push to remote repository)
+        # Phase 5: Refresh HTML Review Dashboard in /inbox/
+        generate_inbox_dashboard(config=config, tenant=tenant)
+
+        # Phase 6: Automated Git Sync (Push to remote repository)
         if not getattr(args, "no_git_sync", False):
-            console.print("[bold blue]5. Syncing Staged Results with Remote Git Repository...[/bold blue]")
+            console.print("[bold blue]6. Syncing Staged Results with Remote Git Repository...[/bold blue]")
             from src.utils.git_sync import auto_git_commit_and_push
             auto_git_commit_and_push(staged_packages_count=len(pkgs))
 
@@ -373,6 +391,10 @@ def main() -> None:
     p_pipe.add_argument("--refresh-models", action="store_true", help="Refresh OpenRouter free model cache before execution")
     p_pipe.add_argument("--no-git-sync", action="store_true", help="Skip automatic git commit and push")
     p_pipe.set_defaults(func=cmd_pipeline)
+
+    # dashboard
+    p_dash = subparsers.add_parser("dashboard", help="Generate or refresh HTML review dashboard in /inbox/")
+    p_dash.set_defaults(func=cmd_dashboard)
 
     # refresh-models
     p_ref = subparsers.add_parser("refresh-models", help="Discover and cache active OpenRouter free models")
