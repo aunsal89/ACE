@@ -1,6 +1,7 @@
 """
 HTML Review Dashboard Generator for Career Engine staged jobs in /inbox/.
-Produces a self-contained, responsive, zero-external-dependency HTML dashboard at inbox/index.html.
+Produces a self-contained, responsive, zero-external-dependency HTML dashboard at inbox/index.html
+with executive-grade light theme, sticky top navigation, interactive charts, multi-term search, and sorting.
 """
 
 from __future__ import annotations
@@ -17,6 +18,58 @@ from src.config import EngineConfig, TenantProfile, load_engine_config, load_ten
 from src.database.models import JobListing, JobStatus, TrackType
 from src.database.repository import JobRepository
 from src.utils.logger import logger
+
+
+def normalize_region_group(location: Optional[str]) -> str:
+    """Normalize free-text location into high-signal geographical region groupings."""
+    if not location:
+        return "Unspecified"
+    loc = location.lower()
+    if "singapore" in loc:
+        return "Singapore"
+    if any(k in loc for k in ("turkey", "türkiye", "ankara", "istanbul", "gebze", "kocaeli", "eskişehir")):
+        if any(k in loc for k in ("istanbul", "gebze", "kocaeli", "marmara", "hadımköy")):
+            return "Turkey (Istanbul / Marmara)"
+        if any(k in loc for k in ("ankara", "eskişehir", "elmadağ", "kahramankazan", "macunköy", "lalahan")):
+            return "Turkey (Ankara)"
+        return "Turkey"
+    if any(k in loc for k in ("united kingdom", "england", "london", "uk", "cambridge", "bristol", "norwich", "norfolk", "gloucester", "hampshire", "doncaster", "hull")):
+        if "london" in loc:
+            return "UK (London)"
+        return "UK (Regional / Other)"
+    if any(k in loc for k in ("germany", "deutschland", "munich", "kassel", "ulm", "dissen", "manching", "bavaria", "hesse")):
+        return "Germany"
+    if any(k in loc for k in ("netherlands", "eindhoven", "nootdorp", "brabant", "holland")):
+        return "Netherlands"
+    if any(k in loc for k in ("china", "suzhou", "wuxi", "changzhou", "shanghai", "beijing", "shenzhen")):
+        return "China / APAC"
+    if any(k in loc for k in ("remote", "anywhere")):
+        return "Remote / Anywhere"
+    # Fallback to the last component of location
+    parts = location.split(",")
+    return parts[-1].strip() if parts else location.strip()
+
+
+def normalize_position_group(title: Optional[str]) -> str:
+    """Normalize free-text job title into executive role taxonomy."""
+    if not title:
+        return "Other Technical"
+    t = title.lower()
+    if any(k in t for k in ("quantitative developer", "quant developer", "trading systems", "execution", "c# quantitative")):
+        return "Quantitative Developer"
+    if any(k in t for k in ("quantitative analyst", "quant analyst", "quantitative research", "quant research", "prime finance", "algorithmic trading platforms")):
+        return "Quantitative Analyst / Research"
+    if any(k in t for k in ("director", "head of", "abteilungsleiter", "fachbereichsleiter", "engineering manager", "software project manager", "müdür")):
+        return "Leadership / Management"
+    if any(k in t for k in ("lead", "lider", "takım lideri", "principal", "kıdemli", "architect", "mimar", "flight control system (fcs) team lead")):
+        return "Lead / Principal / Architect"
+    if any(k in t for k in ("flight control", "uçuş kontrol", "aviyonik", "avionics", "güdüm")):
+        return "Avionics & Flight Systems"
+    if any(k in t for k in ("motor control", "traction control", "güç elektroniği", "power electronics", "inverter", "elektrikli güç")):
+        return "Power Electronics & Motor Control"
+    if any(k in t for k in ("embedded", "gömülü", "firmware")):
+        return "Embedded & Firmware"
+    return "Other Technical"
 
 
 def generate_inbox_dashboard(
@@ -108,18 +161,24 @@ def generate_inbox_dashboard(
             except Exception:
                 pass
 
+        region_group = normalize_region_group(job.location)
+        pos_group = normalize_position_group(job.title)
+
         job_cards_data.append({
             "id": job.id,
             "short_id": job.id[:8],
             "title": job.title,
             "company": job.company,
             "location": job.location or "Location Not Specified",
+            "region_group": region_group,
+            "position_group": pos_group,
             "is_remote": job.is_remote,
             "track": job.assigned_track.value,
             "status": job.status.value,
             "source": job.source,
             "url": job.url or "#",
             "discovered_at": job.discovered_at.strftime("%Y-%m-%d %H:%M") if job.discovered_at else "",
+            "discovered_ts": job.discovered_at.timestamp() if job.discovered_at else 0,
             "description": job.description_cleaned or job.description_raw or "",
             "score": score_val,
             "recommendation": rec_val,
@@ -138,7 +197,7 @@ def generate_inbox_dashboard(
     total_count = len(job_cards_data)
     track_a_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_A")
     track_b_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_B")
-    pending_count = sum(1 for j in job_cards_data if j["status"] in ("QUEUED", "EVALUATED", "DISCOVERED") and j.get("folder_rel_path"))
+    pending_count = sum(1 for j in job_cards_data if j.get("folder_rel_path"))
     approved_count = sum(1 for j in job_cards_data if j["status"] == "APPLIED")
     rejected_count = sum(1 for j in job_cards_data if j["status"] == "REJECTED")
 
@@ -167,54 +226,63 @@ def _build_html_template(
     stats: Dict[str, int],
     generated_time: str,
 ) -> str:
-    """Render self-contained HTML dashboard."""
+    """Render self-contained, executive-grade light HTML dashboard with interactive charts."""
     jobs_json = json.dumps(job_cards, ensure_ascii=False)
 
     return f"""<!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Career Engine — Opportunities & Application Review</title>
+  <title>Career Engine — Executive Sourcing & Review Dashboard</title>
   <style>
     :root {{
-      --bg-base: #0b0f17;
-      --bg-card: #131b2e;
-      --bg-card-hover: #1a253f;
-      --border-subtle: #1e293b;
-      --border-highlight: #334155;
-      --text-main: #f1f5f9;
-      --text-muted: #94a3b8;
+      --bg-page: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-subtle: #f1f5f9;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #475569;
       --text-dim: #64748b;
-      --accent-blue: #38bdf8;
-      --accent-amber: #f59e0b;
-      --accent-emerald: #10b981;
-      --accent-rose: #f43f5e;
-      --accent-purple: #a855f7;
+      --accent-blue: #2563eb;
+      --accent-blue-light: #eff6ff;
+      --accent-amber: #d97706;
+      --accent-amber-light: #fffbeb;
+      --accent-emerald: #059669;
+      --accent-emerald-light: #ecfdf5;
+      --accent-purple: #7c3aed;
+      --accent-purple-light: #faf5ff;
+      --accent-rose: #dc2626;
+      --accent-rose-light: #fef2f2;
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
     }}
     * {{
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
     }}
     body {{
-      background-color: var(--bg-base);
+      background-color: var(--bg-page);
       color: var(--text-main);
       padding: 24px;
       line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }}
     .container {{
-      max-width: 1400px;
+      max-width: 1440px;
       margin: 0 auto;
     }}
-    header {{
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+    header.header-panel {{
+      background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      border-radius: 16px;
-      padding: 28px;
-      margin-bottom: 24px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
     }}
     .header-top {{
       display: flex;
@@ -222,125 +290,427 @@ def _build_html_template(
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }}
     .header-title h1 {{
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
+      letter-spacing: -0.01em;
     }}
     .header-title p {{
       color: var(--text-muted);
-      font-size: 14px;
+      font-size: 13px;
       margin-top: 4px;
     }}
     .time-badge {{
       font-size: 12px;
-      background: rgba(56, 189, 248, 0.1);
-      color: var(--accent-blue);
-      border: 1px solid rgba(56, 189, 248, 0.2);
+      font-weight: 500;
+      background: var(--bg-surface-subtle);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
       padding: 4px 12px;
       border-radius: 20px;
     }}
     .stats-bar {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 12px;
     }}
     .stat-card {{
-      background: rgba(15, 23, 42, 0.6);
+      background: var(--bg-page);
       border: 1px solid var(--border-subtle);
-      border-radius: 10px;
+      border-radius: 8px;
       padding: 12px 16px;
-      text-align: center;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }}
+    .stat-card:hover {{
+      background: var(--bg-surface-subtle);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
     }}
     .stat-card .val {{
-      font-size: 24px;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+      line-height: 1.2;
+    }}
+    .stat-card .label {{
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-top: 4px;
+    }}
+
+    /* Analytics Overview Section */
+    .analytics-panel {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }}
+    .analytics-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 20px;
+      background: var(--bg-surface-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      cursor: pointer;
+      user-select: none;
+    }}
+    .analytics-header:hover {{
+      background: #e9eef5;
+    }}
+    .analytics-title {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
       font-weight: 700;
       color: var(--text-main);
     }}
-    .stat-card .label {{
+    .analytics-subtitle {{
       font-size: 12px;
+      font-weight: 400;
       color: var(--text-dim);
+    }}
+    .toggle-btn {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+    }}
+    .analytics-content {{
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }}
+    .chart-box {{
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+    }}
+    .chart-box h3 {{
+      font-size: 12px;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      margin-top: 2px;
-    }}
-    .controls {{
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 24px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
       display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
       align-items: center;
       justify-content: space-between;
     }}
-    .search-box {{
-      flex: 1;
-      min-width: 280px;
+    .chart-box h3 .chart-hint {{
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--accent-blue);
+      text-transform: none;
+    }}
+    .chart-items-list {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 240px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }}
+    .chart-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 6px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
       position: relative;
+      overflow: hidden;
     }}
-    .search-box input {{
-      width: 100%;
-      background: #0f172a;
-      border: 1px solid var(--border-highlight);
-      color: var(--text-main);
-      padding: 10px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      outline: none;
-      transition: border-color 0.2s;
-    }}
-    .search-box input:focus {{
+    .chart-row:hover {{
       border-color: var(--accent-blue);
+      background: var(--accent-blue-light);
+    }}
+    .chart-row.active {{
+      border-color: var(--accent-blue);
+      background: var(--accent-blue-light);
+      font-weight: 700;
+      box-shadow: inset 3px 0 0 var(--accent-blue);
+    }}
+    .chart-row-bar {{
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      background: rgba(37, 99, 235, 0.08);
+      pointer-events: none;
+      z-index: 1;
+    }}
+    .chart-row-content {{
+      position: relative;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      align-items: center;
+    }}
+    .chart-row-label {{
+      color: var(--text-main);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 200px;
+    }}
+    .chart-row-val {{
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 11px;
+      margin-left: 8px;
+    }}
+
+    /* Donut chart SVG styling */
+    .donut-container {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 8px 0;
+    }}
+    .donut-svg {{
+      width: 110px;
+      height: 110px;
+      transform: rotate(-90deg);
+    }}
+    .donut-legend {{
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+    }}
+    .donut-legend-item {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }}
+    .donut-legend-item:hover, .donut-legend-item.active {{
+      background: var(--accent-blue-light);
+      font-weight: 600;
+    }}
+    .legend-color-dot {{
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }}
+
+    /* Persistent Sticky Navigation Bar */
+    .sticky-controls {{
+      position: sticky;
+      top: 0;
+      z-index: 900;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }}
+    .controls-top {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+    }}
+    .search-wrapper {{
+      flex: 1;
+      min-width: 300px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }}
+    .search-wrapper input {{
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main);
+      padding: 8px 36px 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.15s;
+    }}
+    .search-wrapper input:focus {{
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }}
+    .search-clear-btn {{
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 14px;
+      cursor: pointer;
+      display: none;
+      padding: 2px 4px;
+    }}
+    .search-clear-btn:hover {{
+      color: var(--text-main);
+    }}
+    .sort-control {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .sort-control label {{
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }}
+    .sort-control select {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+    }}
+    .sort-control select:focus {{
+      border-color: var(--accent-blue);
+    }}
+    .controls-bottom {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
     }}
     .filter-pills {{
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }}
     .pill {{
-      background: #0f172a;
+      background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       color: var(--text-muted);
-      padding: 8px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }}
     .pill:hover {{
-      border-color: var(--border-highlight);
-      color: #fff;
+      border-color: var(--border-strong);
+      color: var(--text-main);
+      background: var(--bg-surface-subtle);
     }}
     .pill.active {{
       background: var(--accent-blue);
-      color: #0b0f17;
+      color: #ffffff;
       border-color: var(--accent-blue);
+      box-shadow: var(--shadow-sm);
+    }}
+    .active-filter-tags {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }}
+    .active-filter-tag {{
+      background: var(--accent-blue-light);
+      color: var(--accent-blue);
+      border: 1px solid rgba(37, 99, 235, 0.25);
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }}
+    .active-filter-tag .tag-remove {{
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+      font-weight: bold;
+    }}
+    .btn-reset-filters {{
+      background: none;
+      border: 1px dashed var(--border-strong);
+      color: var(--text-dim);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
       font-weight: 600;
     }}
+    .btn-reset-filters:hover {{
+      background: var(--bg-surface-subtle);
+      color: var(--text-main);
+      border-color: var(--text-muted);
+    }}
+    .results-count-bar {{
+      font-size: 12px;
+      color: var(--text-dim);
+      font-weight: 500;
+    }}
+
+    /* Jobs Grid */
     .jobs-grid {{
       display: grid;
       grid-template-columns: 1fr;
-      gap: 16px;
+      gap: 14px;
     }}
     .job-card {{
-      background: var(--bg-card);
+      background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      padding: 20px;
-      transition: transform 0.15s, border-color 0.15s;
+      border-radius: 10px;
+      padding: 18px 20px;
+      transition: all 0.15s ease;
+      box-shadow: var(--shadow-sm);
     }}
     .job-card:hover {{
-      border-color: var(--border-highlight);
-      background: var(--bg-card-hover);
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow-md);
     }}
     .card-header {{
       display: flex;
@@ -348,25 +718,26 @@ def _build_html_template(
       align-items: flex-start;
       gap: 12px;
       flex-wrap: wrap;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }}
     .card-title-group h2 {{
-      font-size: 18px;
-      font-weight: 600;
-      color: #fff;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.01em;
     }}
     .card-title-group .company {{
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 600;
-      color: var(--accent-amber);
+      color: var(--accent-blue);
       margin-top: 2px;
     }}
     .card-meta {{
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-muted);
       margin-top: 6px;
       display: flex;
-      gap: 16px;
+      gap: 14px;
       flex-wrap: wrap;
       align-items: center;
     }}
@@ -380,144 +751,80 @@ def _build_html_template(
       font-size: 11px;
       font-weight: 600;
       padding: 3px 8px;
-      border-radius: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      border-radius: 5px;
+      letter-spacing: 0.02em;
     }}
     .badge-track-a {{
-      background: rgba(245, 158, 11, 0.15);
+      background: var(--accent-amber-light);
       color: var(--accent-amber);
-      border: 1px solid rgba(245, 158, 11, 0.3);
+      border: 1px solid rgba(217, 119, 6, 0.3);
     }}
     .badge-track-b {{
-      background: rgba(168, 85, 247, 0.15);
+      background: var(--accent-purple-light);
       color: var(--accent-purple);
-      border: 1px solid rgba(168, 85, 247, 0.3);
+      border: 1px solid rgba(124, 58, 237, 0.3);
     }}
     .badge-queued {{
-      background: rgba(56, 189, 248, 0.15);
+      background: var(--accent-blue-light);
       color: var(--accent-blue);
-      border: 1px solid rgba(56, 189, 248, 0.3);
+      border: 1px solid rgba(37, 99, 235, 0.3);
     }}
     .badge-applied {{
-      background: rgba(16, 185, 129, 0.15);
+      background: var(--accent-emerald-light);
       color: var(--accent-emerald);
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(5, 150, 105, 0.3);
     }}
     .badge-rejected {{
-      background: rgba(244, 63, 94, 0.15);
+      background: var(--accent-rose-light);
       color: var(--accent-rose);
-      border: 1px solid rgba(244, 63, 94, 0.3);
+      border: 1px solid rgba(220, 38, 38, 0.3);
     }}
     .badge-discovered {{
-      background: rgba(148, 163, 184, 0.15);
-      color: var(--text-muted);
-      border: 1px solid rgba(148, 163, 184, 0.3);
+      background: var(--bg-surface-subtle);
+      color: var(--text-dim);
+      border: 1px solid var(--border-subtle);
     }}
     .score-badge {{
-      font-size: 13px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 8px;
-      background: #0f172a;
-      border: 1px solid var(--border-highlight);
-    }}
-    .score-high {{ color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.4); }}
-    .score-mid {{ color: var(--accent-amber); border-color: rgba(245, 158, 11, 0.4); }}
-    .score-low {{ color: var(--accent-rose); border-color: rgba(244, 63, 94, 0.4); }}
-    
-    .actions-bar {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid var(--border-subtle);
-      align-items: center;
-    }}
-    .btn {{
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      padding: 6px 12px;
-      border-radius: 6px;
-      text-decoration: none;
-      cursor: pointer;
-      transition: all 0.15s;
-      border: 1px solid var(--border-highlight);
-      background: #0f172a;
-      color: var(--text-main);
-    }}
-    .btn:hover {{
-      background: #1e293b;
-      color: #fff;
-    }}
-    .btn-primary {{
-      background: rgba(56, 189, 248, 0.1);
-      border-color: rgba(56, 189, 248, 0.4);
-      color: var(--accent-blue);
-    }}
-    .btn-primary:hover {{
-      background: rgba(56, 189, 248, 0.2);
-    }}
-    .btn-approve {{
-      background: rgba(16, 185, 129, 0.1);
-      border-color: rgba(16, 185, 129, 0.4);
-      color: var(--accent-emerald);
-    }}
-    .btn-approve:hover {{
-      background: rgba(16, 185, 129, 0.2);
-    }}
-    .btn-reject {{
-      background: rgba(244, 63, 94, 0.1);
-      border-color: rgba(244, 63, 94, 0.4);
-      color: var(--accent-rose);
-    }}
-    .btn-reject:hover {{
-      background: rgba(244, 63, 94, 0.2);
-    }}
-    .btn-folder {{
-      background: rgba(245, 158, 11, 0.1);
-      border-color: rgba(245, 158, 11, 0.4);
-      color: var(--accent-amber);
-    }}
-    .btn-folder:hover {{
-      background: rgba(245, 158, 11, 0.2);
-    }}
-    .btn-url {{
-      background: rgba(168, 85, 247, 0.1);
-      border-color: rgba(168, 85, 247, 0.4);
-      color: var(--accent-purple);
-    }}
-    .btn-url:hover {{
-      background: rgba(168, 85, 247, 0.2);
-    }}
-    
-    .job-id-tag {{
-      font-family: monospace;
       font-size: 11px;
-      background: #090d16;
-      border: 1px solid var(--border-subtle);
-      padding: 4px 8px;
-      border-radius: 4px;
-      color: var(--text-muted);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid transparent;
     }}
-    .job-id-tag:hover {{
-      color: var(--accent-blue);
-      border-color: var(--accent-blue);
+    .score-high {{
+      background: var(--accent-emerald-light);
+      color: var(--accent-emerald);
+      border-color: rgba(5, 150, 105, 0.3);
+    }}
+    .score-mid {{
+      background: var(--accent-amber-light);
+      color: var(--accent-amber);
+      border-color: rgba(217, 119, 6, 0.3);
+    }}
+    .score-low {{
+      background: var(--accent-rose-light);
+      color: var(--accent-rose);
+      border-color: rgba(220, 38, 38, 0.3);
+    }}
+
+    .ai-rationale-box {{
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-surface-subtle);
+      padding: 8px 12px;
+      border-radius: 6px;
+      border-left: 3px solid var(--accent-blue);
+      margin-top: 10px;
+    }}
+    .ai-rationale-box strong {{
+      color: var(--text-main);
     }}
 
     details.desc-accordion {{
-      margin-top: 12px;
-      background: #0b1120;
+      margin-top: 10px;
+      background: var(--bg-page);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 8px 12px;
     }}
     details.desc-accordion summary {{
@@ -526,32 +833,129 @@ def _build_html_template(
       font-weight: 600;
       color: var(--text-muted);
       outline: none;
+      user-select: none;
     }}
     details.desc-accordion summary:hover {{
       color: var(--text-main);
     }}
     .desc-content {{
-      margin-top: 10px;
-      font-size: 13px;
+      margin-top: 8px;
+      font-size: 12px;
       color: var(--text-muted);
       white-space: pre-wrap;
-      max-height: 250px;
+      max-height: 240px;
       overflow-y: auto;
       padding-right: 8px;
       border-top: 1px solid var(--border-subtle);
       padding-top: 8px;
+      line-height: 1.6;
     }}
+
+    .actions-bar {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      align-items: center;
+    }}
+    .btn {{
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 11px;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+    }}
+    .btn:hover {{
+      background: var(--bg-surface-subtle);
+      color: var(--text-main);
+      border-color: var(--text-dim);
+    }}
+    .btn-primary {{
+      background: var(--accent-blue-light);
+      border-color: rgba(37, 99, 235, 0.35);
+      color: var(--accent-blue);
+    }}
+    .btn-primary:hover {{
+      background: #dbeafe;
+      border-color: var(--accent-blue);
+    }}
+    .btn-approve {{
+      background: var(--accent-emerald-light);
+      border-color: rgba(5, 150, 105, 0.35);
+      color: var(--accent-emerald);
+    }}
+    .btn-approve:hover {{
+      background: #d1fae5;
+      border-color: var(--accent-emerald);
+    }}
+    .btn-reject {{
+      background: var(--accent-rose-light);
+      border-color: rgba(220, 38, 38, 0.35);
+      color: var(--accent-rose);
+    }}
+    .btn-reject:hover {{
+      background: #fee2e2;
+      border-color: var(--accent-rose);
+    }}
+    .btn-folder {{
+      background: var(--accent-amber-light);
+      border-color: rgba(217, 119, 6, 0.35);
+      color: var(--accent-amber);
+    }}
+    .btn-folder:hover {{
+      background: #fef3c7;
+      border-color: var(--accent-amber);
+    }}
+    .btn-url {{
+      background: var(--accent-purple-light);
+      border-color: rgba(124, 58, 237, 0.35);
+      color: var(--accent-purple);
+    }}
+    .btn-url:hover {{
+      background: #f3e8ff;
+      border-color: var(--accent-purple);
+    }}
+
+    .job-id-tag {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      background: var(--bg-surface-subtle);
+      border: 1px solid var(--border-subtle);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }}
+    .job-id-tag:hover {{
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+      background: var(--accent-blue-light);
+    }}
+
     .toast {{
       position: fixed;
       bottom: 24px;
       right: 24px;
-      background: #10b981;
-      color: #0b0f17;
-      font-weight: 600;
+      background: var(--text-main);
+      color: #ffffff;
+      font-weight: 500;
       font-size: 13px;
       padding: 10px 18px;
       border-radius: 8px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      box-shadow: var(--shadow-lg);
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s ease-in-out;
@@ -563,63 +967,135 @@ def _build_html_template(
     .empty-state {{
       text-align: center;
       padding: 48px 24px;
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-strong);
+      border-radius: 10px;
       color: var(--text-dim);
-      font-size: 16px;
+      font-size: 14px;
+    }}
+    .empty-state button {{
+      margin-top: 10px;
     }}
   </style>
 </head>
 <body>
   <div class="container">
-    <header>
+    <header class="header-panel">
       <div class="header-top">
         <div class="header-title">
           <h1>🎯 Career Engine Review Dashboard</h1>
-          <p>Tenant: <strong>{html.escape(tenant.name)}</strong> ({html.escape(tenant.tenant_id)}) &nbsp;|&nbsp; Authoritative Hub</p>
+          <p>Tenant: <strong>{html.escape(tenant.name)}</strong> ({html.escape(tenant.tenant_id)}) &nbsp;|&nbsp; Authoritative Career Hub</p>
         </div>
         <div class="time-badge">Refreshed: {generated_time}</div>
       </div>
       <div class="stats-bar">
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('all')">
           <div class="val" id="stat-total">{stats["total"]}</div>
           <div class="label">Total Sourced</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('track_a')">
           <div class="val" style="color: var(--accent-amber);">{stats["track_a"]}</div>
           <div class="label">Track A (Embedded)</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('track_b')">
           <div class="val" style="color: var(--accent-purple);">{stats["track_b"]}</div>
           <div class="label">Track B (Quant)</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('staged')">
           <div class="val" style="color: var(--accent-blue);">{stats["pending"]}</div>
-          <div class="label">Staged / Queued</div>
+          <div class="label">Staged Packages</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('applied')">
           <div class="val" style="color: var(--accent-emerald);">{stats["approved"]}</div>
           <div class="label">Applied</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" onclick="setPrimaryFilter('rejected')">
           <div class="val" style="color: var(--accent-rose);">{stats["rejected"]}</div>
           <div class="label">Rejected</div>
         </div>
       </div>
     </header>
 
-    <div class="controls">
-      <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Search by title, company, location, keywords, ID..." />
+    <!-- Visual Analytics Overview Panel -->
+    <div class="analytics-panel">
+      <div class="analytics-header" onclick="toggleAnalytics()">
+        <div class="analytics-title">
+          <span>📊 Interactive Sourcing & Pipeline Overview</span>
+          <span class="analytics-subtitle">(Click any chart segment, region, or position group to filter)</span>
+        </div>
+        <button class="toggle-btn" id="analyticsToggleBtn">▾ Hide Overview</button>
       </div>
-      <div class="filter-pills">
-        <button class="pill active" data-filter="all">All ({stats["total"]})</button>
-        <button class="pill" data-filter="track_a">Track A ({stats["track_a"]})</button>
-        <button class="pill" data-filter="track_b">Track B ({stats["track_b"]})</button>
-        <button class="pill" data-filter="staged">Staged Packages ({stats["pending"]})</button>
-        <button class="pill" data-filter="applied">Applied ({stats["approved"]})</button>
-        <button class="pill" data-filter="rejected">Rejected ({stats["rejected"]})</button>
+      <div class="analytics-content" id="analyticsContent">
+        <!-- Track Distribution Donut -->
+        <div class="chart-box">
+          <h3>🎯 Track Breakdown <span class="chart-hint">Click to filter</span></h3>
+          <div class="donut-container" id="trackDonutContainer">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Geographical Regions Bar Chart -->
+        <div class="chart-box">
+          <h3>📍 Top Regions & Hubs <span class="chart-hint">Click region to filter</span></h3>
+          <div class="chart-items-list" id="regionsChartList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Position & Role Groupings -->
+        <div class="chart-box">
+          <h3>💼 Position Taxonomy <span class="chart-hint">Click role to filter</span></h3>
+          <div class="chart-items-list" id="positionsChartList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Application Pipeline Status -->
+        <div class="chart-box">
+          <h3>📋 Application Pipeline <span class="chart-hint">Click status to filter</span></h3>
+          <div class="chart-items-list" id="statusChartList">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- Persistent Sticky Controls Bar -->
+    <div class="sticky-controls">
+      <div class="controls-top">
+        <div class="search-wrapper">
+          <input type="text" id="searchInput" placeholder='Search by title, company, location (e.g. "Singapore + Quant", "London, Embedded", ID...)' autocomplete="off" />
+          <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()" title="Clear Search">✕</button>
+        </div>
+        <div class="sort-control">
+          <label for="sortSelect">Sort By:</label>
+          <select id="sortSelect" onchange="handleSortChange(this.value)">
+            <option value="date_desc">📅 Discovered: Newest First</option>
+            <option value="date_asc">📅 Discovered: Oldest First</option>
+            <option value="score_desc">⭐ Score: Highest First</option>
+            <option value="title_asc">🔤 Title: A → Z</option>
+            <option value="title_desc">🔤 Title: Z → A</option>
+            <option value="company_asc">🏢 Company: A → Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="controls-bottom">
+        <div class="filter-pills">
+          <button class="pill active" data-filter="all" onclick="setPrimaryFilter('all')">All ({stats["total"]})</button>
+          <button class="pill" data-filter="track_a" onclick="setPrimaryFilter('track_a')">Track A ({stats["track_a"]})</button>
+          <button class="pill" data-filter="track_b" onclick="setPrimaryFilter('track_b')">Track B ({stats["track_b"]})</button>
+          <button class="pill" data-filter="staged" onclick="setPrimaryFilter('staged')">Staged Packages ({stats["pending"]})</button>
+          <button class="pill" data-filter="applied" onclick="setPrimaryFilter('applied')">Applied ({stats["approved"]})</button>
+          <button class="pill" data-filter="rejected" onclick="setPrimaryFilter('rejected')">Rejected ({stats["rejected"]})</button>
+        </div>
+
+        <div class="active-filter-tags" id="activeFilterTags"></div>
+        <div class="results-count-bar" id="resultsCountBar"></div>
+      </div>
+    </div>
+
+    <!-- Jobs Grid Container -->
     <div class="jobs-grid" id="jobsGrid"></div>
   </div>
 
@@ -628,7 +1104,11 @@ def _build_html_template(
   <script>
     const JOBS = {jobs_json};
     let currentFilter = "all";
+    let selectedRegion = null;
+    let selectedPosition = null;
     let searchQuery = "";
+    let currentSort = "date_desc";
+    let isAnalyticsVisible = true;
 
     function showToast(msg) {{
       const toast = document.getElementById("toast");
@@ -645,42 +1125,316 @@ def _build_html_template(
       }});
     }}
 
-    function renderJobs() {{
-      const grid = document.getElementById("jobsGrid");
-      const filtered = JOBS.filter(j => {{
-        // Filter pills
+    function toggleAnalytics() {{
+      const content = document.getElementById("analyticsContent");
+      const btn = document.getElementById("analyticsToggleBtn");
+      isAnalyticsVisible = !isAnalyticsVisible;
+      if (isAnalyticsVisible) {{
+        content.style.display = "grid";
+        btn.innerText = "▾ Hide Overview";
+      }} else {{
+        content.style.display = "none";
+        btn.innerText = "▸ Show Overview";
+      }}
+    }}
+
+    function setPrimaryFilter(filter) {{
+      currentFilter = filter;
+      document.querySelectorAll(".pill").forEach(p => {{
+        if (p.getAttribute("data-filter") === filter) {{
+          p.classList.add("active");
+        }} else {{
+          p.classList.remove("active");
+        }}
+      }});
+      renderAll();
+    }}
+
+    function setRegionFilter(region) {{
+      if (selectedRegion === region) {{
+        selectedRegion = null;
+      }} else {{
+        selectedRegion = region;
+      }}
+      renderAll();
+    }}
+
+    function setPositionFilter(pos) {{
+      if (selectedPosition === pos) {{
+        selectedPosition = null;
+      }} else {{
+        selectedPosition = pos;
+      }}
+      renderAll();
+    }}
+
+    function clearSearch() {{
+      document.getElementById("searchInput").value = "";
+      searchQuery = "";
+      document.getElementById("searchClearBtn").style.display = "none";
+      renderAll();
+    }}
+
+    function resetAllFilters() {{
+      currentFilter = "all";
+      selectedRegion = null;
+      selectedPosition = null;
+      searchQuery = "";
+      document.getElementById("searchInput").value = "";
+      document.getElementById("searchClearBtn").style.display = "none";
+      document.querySelectorAll(".pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-filter") === "all");
+      }});
+      renderAll();
+    }}
+
+    function handleSortChange(sortVal) {{
+      currentSort = sortVal;
+      renderAll();
+    }}
+
+    // Multi-term and Boolean search matching (+ for AND, , for OR)
+    function matchesSearch(job, query) {{
+      if (!query || !query.trim()) return true;
+      const cleanQ = query.trim().toLowerCase();
+
+      // Split by comma (OR clauses)
+      const orClauses = cleanQ.split(',').map(s => s.trim()).filter(Boolean);
+      if (orClauses.length === 0) return true;
+
+      const kws = (job.matched_keywords || []).join(' ');
+      const searchableText = [
+        job.title,
+        job.company,
+        job.location,
+        job.region_group,
+        job.position_group,
+        job.track === 'TRACK_A' ? 'track a embedded leadership hardware automotive defense' : 'track b quant quantitative developer trading algo aura',
+        job.status,
+        job.source,
+        job.short_id,
+        job.id,
+        job.description,
+        job.reasoning,
+        kws
+      ].map(v => (v || '').toLowerCase()).join(' ');
+
+      // Must match at least ONE OR clause
+      return orClauses.some(orClause => {{
+        // Within each OR clause, split by '+' (AND terms)
+        const andTokens = orClause.split('+').map(t => t.trim()).filter(Boolean);
+        if (andTokens.length === 0) return true;
+        // Must contain ALL tokens in this AND group
+        return andTokens.every(token => searchableText.includes(token));
+      }});
+    }}
+
+    function filterJobs(jobList) {{
+      return jobList.filter(j => {{
+        // Primary filter tab
         if (currentFilter === "track_a" && j.track !== "TRACK_A") return false;
         if (currentFilter === "track_b" && j.track !== "TRACK_B") return false;
         if (currentFilter === "staged" && !j.folder_rel_path) return false;
         if (currentFilter === "applied" && j.status !== "APPLIED") return false;
         if (currentFilter === "rejected" && j.status !== "REJECTED") return false;
 
-        // Search
-        if (searchQuery) {{
-          const q = searchQuery.toLowerCase();
-          const matchTitle = (j.title || "").toLowerCase().includes(q);
-          const matchCompany = (j.company || "").toLowerCase().includes(q);
-          const matchLoc = (j.location || "").toLowerCase().includes(q);
-          const matchId = (j.id || "").toLowerCase().includes(q) || (j.short_id || "").toLowerCase().includes(q);
-          const matchDesc = (j.description || "").toLowerCase().includes(q);
-          const matchReason = (j.reasoning || "").toLowerCase().includes(q);
-          if (!matchTitle && !matchCompany && !matchLoc && !matchId && !matchDesc && !matchReason) {{
-            return false;
-          }}
-        }}
+        // Region filter
+        if (selectedRegion && j.region_group !== selectedRegion) return false;
+
+        // Position filter
+        if (selectedPosition && j.position_group !== selectedPosition) return false;
+
+        // Search query
+        if (searchQuery && !matchesSearch(j, searchQuery)) return false;
+
         return true;
       }});
+    }}
 
-      if (filtered.length === 0) {{
-        grid.innerHTML = '<div class="empty-state">No job listings found matching current filters.</div>';
+    function sortJobs(jobList) {{
+      return [...jobList].sort((a, b) => {{
+        if (currentSort === "date_desc") {{
+          return (b.discovered_ts || 0) - (a.discovered_ts || 0);
+        }} else if (currentSort === "date_asc") {{
+          return (a.discovered_ts || 0) - (b.discovered_ts || 0);
+        }} else if (currentSort === "score_desc") {{
+          return (b.score || 0) - (a.score || 0);
+        }} else if (currentSort === "title_asc") {{
+          return (a.title || "").localeCompare(b.title || "");
+        }} else if (currentSort === "title_desc") {{
+          return (b.title || "").localeCompare(a.title || "");
+        }} else if (currentSort === "company_asc") {{
+          return (a.company || "").localeCompare(b.company || "");
+        }}
+        return 0;
+      }});
+    }}
+
+    function renderAnalytics() {{
+      // 1. Track Breakdown Donut
+      const trackACount = JOBS.filter(j => j.track === "TRACK_A").length;
+      const trackBCount = JOBS.filter(j => j.track === "TRACK_B").length;
+      const total = JOBS.length || 1;
+      const trackAPct = ((trackACount / total) * 100).toFixed(0);
+      const trackBPct = ((trackBCount / total) * 100).toFixed(0);
+      
+      const circumference = 2 * Math.PI * 38; // r=38 -> ~238.76
+      const trackAOffset = 0;
+      const trackAStroke = (trackACount / total) * circumference;
+      const trackBStroke = (trackBCount / total) * circumference;
+
+      const donutHtml = `
+        <svg class="donut-svg" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#e2e8f0" stroke-width="14" />
+          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#d97706" stroke-width="14"
+            stroke-dasharray="${{trackAStroke}} ${{circumference}}" stroke-dashoffset="0" style="transition: stroke-dasharray 0.3s;" />
+          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#7c3aed" stroke-width="14"
+            stroke-dasharray="${{trackBStroke}} ${{circumference}}" stroke-dashoffset="-${{trackAStroke}}" style="transition: stroke-dasharray 0.3s;" />
+        </svg>
+        <div class="donut-legend">
+          <div class="donut-legend-item ${{currentFilter === 'track_a' ? 'active' : ''}}" onclick="setPrimaryFilter('track_a')">
+            <span class="legend-color-dot" style="background: #d97706;"></span>
+            <span>Track A (Embedded): <strong>${{trackACount}}</strong> (${{trackAPct}}%)</span>
+          </div>
+          <div class="donut-legend-item ${{currentFilter === 'track_b' ? 'active' : ''}}" onclick="setPrimaryFilter('track_b')">
+            <span class="legend-color-dot" style="background: #7c3aed;"></span>
+            <span>Track B (Quant): <strong>${{trackBCount}}</strong> (${{trackBPct}}%)</span>
+          </div>
+        </div>
+      `;
+      document.getElementById("trackDonutContainer").innerHTML = donutHtml;
+
+      // 2. Geographical Regions
+      const regionCounts = {{}};
+      JOBS.forEach(j => {{
+        const r = j.region_group || "Unspecified";
+        regionCounts[r] = (regionCounts[r] || 0) + 1;
+      }});
+      const sortedRegions = Object.entries(regionCounts).sort((a, b) => b[1] - a[1]);
+      const maxRegionVal = sortedRegions.length ? sortedRegions[0][1] : 1;
+
+      const regionsHtml = sortedRegions.map(([r, cnt]) => {{
+        const pct = ((cnt / maxRegionVal) * 100).toFixed(0);
+        const isActive = selectedRegion === r;
+        return `
+          <div class="chart-row ${{isActive ? 'active' : ''}}" onclick="setRegionFilter('${{r.replace(/'/g, "\\\'")}}')">
+            <div class="chart-row-bar" style="width: ${{pct}}%;"></div>
+            <div class="chart-row-content">
+              <span class="chart-row-label">📍 ${{r}}</span>
+              <span class="chart-row-val">${{cnt}} jobs</span>
+            </div>
+          </div>
+        `;
+      }}).join("");
+      document.getElementById("regionsChartList").innerHTML = regionsHtml;
+
+      // 3. Position Groupings
+      const posCounts = {{}};
+      JOBS.forEach(j => {{
+        const p = j.position_group || "Other Technical";
+        posCounts[p] = (posCounts[p] || 0) + 1;
+      }});
+      const sortedPos = Object.entries(posCounts).sort((a, b) => b[1] - a[1]);
+      const maxPosVal = sortedPos.length ? sortedPos[0][1] : 1;
+
+      const posHtml = sortedPos.map(([p, cnt]) => {{
+        const pct = ((cnt / maxPosVal) * 100).toFixed(0);
+        const isActive = selectedPosition === p;
+        return `
+          <div class="chart-row ${{isActive ? 'active' : ''}}" onclick="setPositionFilter('${{p.replace(/'/g, "\\\'")}}')">
+            <div class="chart-row-bar" style="width: ${{pct}}%;"></div>
+            <div class="chart-row-content">
+              <span class="chart-row-label">💼 ${{p}}</span>
+              <span class="chart-row-val">${{cnt}} jobs</span>
+            </div>
+          </div>
+        `;
+      }}).join("");
+      document.getElementById("positionsChartList").innerHTML = posHtml;
+
+      // 4. Status Breakdown
+      const statusCounts = {{
+        "Staged Packages": JOBS.filter(j => j.folder_rel_path).length,
+        "Applied": JOBS.filter(j => j.status === "APPLIED").length,
+        "Rejected": JOBS.filter(j => j.status === "REJECTED").length,
+        "Queued / Evaluated": JOBS.filter(j => (j.status === "QUEUED" || j.status === "EVALUATED") && !j.folder_rel_path).length,
+      }};
+      const statusFilters = {{
+        "Staged Packages": "staged",
+        "Applied": "applied",
+        "Rejected": "rejected",
+        "Queued / Evaluated": "all",
+      }};
+
+      const statusHtml = Object.entries(statusCounts).map(([st, cnt]) => {{
+        const fKey = statusFilters[st];
+        const isActive = currentFilter === fKey;
+        const pct = ((cnt / total) * 100).toFixed(0);
+        return `
+          <div class="chart-row ${{isActive ? 'active' : ''}}" onclick="setPrimaryFilter('${{fKey}}')">
+            <div class="chart-row-bar" style="width: ${{pct}}%;"></div>
+            <div class="chart-row-content">
+              <span class="chart-row-label">${{st}}</span>
+              <span class="chart-row-val">${{cnt}}</span>
+            </div>
+          </div>
+        `;
+      }}).join("");
+      document.getElementById("statusChartList").innerHTML = statusHtml;
+    }}
+
+    function renderActiveFilterTags() {{
+      const container = document.getElementById("activeFilterTags");
+      const tags = [];
+
+      if (selectedRegion) {{
+        tags.push(`<span class="active-filter-tag">📍 Region: ${{selectedRegion}} <span class="tag-remove" onclick="setRegionFilter('${{selectedRegion.replace(/'/g, "\\\'")}}')">✕</span></span>`);
+      }}
+      if (selectedPosition) {{
+        tags.push(`<span class="active-filter-tag">💼 Role: ${{selectedPosition}} <span class="tag-remove" onclick="setPositionFilter('${{selectedPosition.replace(/'/g, "\\\'")}}')">✕</span></span>`);
+      }}
+      if (searchQuery) {{
+        tags.push(`<span class="active-filter-tag">🔍 Search: "${{searchQuery}}" <span class="tag-remove" onclick="clearSearch()">✕</span></span>`);
+      }}
+
+      if (tags.length > 0 || currentFilter !== "all") {{
+        tags.push(`<button class="btn-reset-filters" onclick="resetAllFilters()">Reset All Filters</button>`);
+      }}
+
+      container.innerHTML = tags.join("");
+    }}
+
+    function renderJobs() {{
+      const grid = document.getElementById("jobsGrid");
+      const filtered = filterJobs(JOBS);
+      const sorted = sortJobs(filtered);
+
+      // Render count bar
+      const countBar = document.getElementById("resultsCountBar");
+      countBar.innerText = `Showing ${{sorted.length}} of ${{JOBS.length}} jobs`;
+
+      if (sorted.length === 0) {{
+        let helpMsg = "No job listings match the current filters.";
+        if (searchQuery && currentFilter !== "all") {{
+          const allMatches = JOBS.filter(j => matchesSearch(j, searchQuery));
+          if (allMatches.length > 0) {{
+            helpMsg += ` Found ${{allMatches.length}} match(es) in other categories! <button class="btn btn-primary" style="margin-left: 8px;" onclick="setPrimaryFilter('all')">View in All Tabs</button>`;
+          }}
+        }}
+        grid.innerHTML = `
+          <div class="empty-state">
+            <p>${{helpMsg}}</p>
+            <button class="btn" style="margin-top: 12px;" onclick="resetAllFilters()">Clear All Filters</button>
+          </div>
+        `;
         return;
       }}
 
-      grid.innerHTML = filtered.map(j => {{
+      grid.innerHTML = sorted.map(j => {{
         const isTrackA = j.track === "TRACK_A";
         const trackBadgeClass = isTrackA ? "badge-track-a" : "badge-track-b";
         const trackLabel = isTrackA ? "Track A (Embedded)" : "Track B (Quant)";
-        
+
         let statusBadgeClass = "badge-discovered";
         if (j.status === "QUEUED" || j.status === "EVALUATED") statusBadgeClass = "badge-queued";
         else if (j.status === "APPLIED") statusBadgeClass = "badge-applied";
@@ -722,7 +1476,7 @@ def _build_html_template(
 
         // Approve Command Button
         actionLinks.push(`<button class="btn btn-approve" onclick="copyToClipboard('python run.py approve ${{j.short_id}}', 'Copied: python run.py approve ${{j.short_id}}')">✓ Copy Approve Cmd</button>`);
-        
+
         // Reject Command Button
         actionLinks.push(`<button class="btn btn-reject" onclick="copyToClipboard('python run.py reject ${{j.short_id}}', 'Copied: python run.py reject ${{j.short_id}}')">✗ Copy Reject Cmd</button>`);
 
@@ -734,6 +1488,7 @@ def _build_html_template(
                 <div class="company">${{j.company}}</div>
                 <div class="card-meta">
                   <span>📍 ${{j.location}} ${{j.is_remote ? '(Remote)' : ''}}</span>
+                  <span>🏷️ ${{j.position_group}}</span>
                   <span>📡 Source: ${{j.source}}</span>
                   <span>🗓 Discovered: ${{j.discovered_at}}</span>
                   <span class="job-id-tag" onclick="copyToClipboard('${{j.short_id}}', 'Copied Job ID: ${{j.short_id}}')" title="Click to copy Short ID">ID: ${{j.short_id}} 📋</span>
@@ -747,7 +1502,7 @@ def _build_html_template(
             </div>
 
             ${{j.reasoning ? `
-              <div style="font-size: 13px; color: #cbd5e1; background: rgba(15, 23, 42, 0.4); padding: 8px 12px; border-radius: 6px; border-left: 3px solid var(--accent-blue); margin-top: 8px;">
+              <div class="ai-rationale-box">
                 <strong>AI Evaluation Rationale:</strong> ${{j.reasoning}}
               </div>
             ` : ''}}
@@ -767,24 +1522,24 @@ def _build_html_template(
       }}).join("");
     }}
 
-    // Setup event listeners
-    document.querySelectorAll(".pill").forEach(p => {{
-      p.addEventListener("click", () => {{
-        document.querySelectorAll(".pill").forEach(el => el.classList.remove("active"));
-        p.classList.add("active");
-        currentFilter = p.getAttribute("data-filter");
-        renderJobs();
-      }});
-    }});
+    function renderAll() {{
+      renderAnalytics();
+      renderActiveFilterTags();
+      renderJobs();
+    }}
 
+    // Setup input search listener
     const sInput = document.getElementById("searchInput");
+    const clearBtn = document.getElementById("searchClearBtn");
+
     sInput.addEventListener("input", (e) => {{
       searchQuery = e.target.value;
-      renderJobs();
+      clearBtn.style.display = searchQuery ? "block" : "none";
+      renderAll();
     }});
 
     // Initial render
-    renderJobs();
+    renderAll();
   </script>
 </body>
 </html>
