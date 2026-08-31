@@ -1,245 +1,192 @@
-# Ahmet Halit Ünsal — Autonomous Career Engine & Portfolio Architecture
+# Autonomous Career Engine (ACE) ⚡
 
-Production-grade autonomous career sourcing orchestrator and personal web portfolio at **[ahmethalitunsal.com](https://www.ahmethalitunsal.com)**.
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![AI Powered](https://img.shields.io/badge/AI-Gemini%20%7C%20OpenRouter%20%7C%20Claude-8A2BE2.svg)](https://aistudio.google.com/)
+[![Cross-Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-green.svg)](https://github.com/aunsal89/ACE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa.svg)](https://github.com/sponsors/aunsal89)
+
+> **Autonomous Career Engine (ACE)** is a powerful, cross-platform, AI-driven career orchestration system. It autonomously sources job opportunities across live job boards and email alerts, evaluates candidate fit using cutting-edge Generative AI (Gemini, OpenRouter free models, Claude, OpenAI), extracts and structures candidate PDF resumes, and synthesizes tailored, metric-driven application dossiers (Resume PDF/MD, Cover Letter PDF/MD, LinkedIn outreach guidance, and interactive review dashboards).
 
 ---
 
-## 🏛️ System Architecture & Dual-Track Goals
+## 🌟 Key Highlights & Capabilities
 
-The Career Engine runs autonomously on host `vsmlnx` (Ubuntu x86_64), discovering, evaluating, and drafting job applications for two distinct target career tracks:
+- 📄 **Universal CV Parsing (PDF, MD, TXT):** Feed your existing PDF or Markdown resume; ACE extracts and segments career history, education, and technical toolbox using generative AI and intelligent heuristic extractors.
+- 👥 **Multi-Tenant Device Architecture:** Run multiple independent candidate profiles on a single device or workstation. Each candidate maintains isolated preferences, target titles, compensation filters, and staged application packages.
+- 📡 **Multi-Channel Job Sourcing:**
+  - **Google Jobs / SerpApi:** Aggregates live job postings matching intent.
+  - **Headless Gmail LinkedIn Alert Ingestion:** Securely ingests LinkedIn Job Alert emails over IMAP with zero browser/GUI dependency.
+  - **Apify LinkedIn Scraper:** Scrapes live LinkedIn postings with rate-limiting and quota-overflow fallbacks.
+  - **Specialized Defense Portals:** Ingestion pipelines for ASELSAN, BAYKAR, Vizyoner Genç, TUSAŞ, and ROKETSAN.
+- 🧠 **Dynamic AI Scoring & Free-Tier Cascade:**
+  - Evaluates candidate fit, compensation thresholds, location/remote preferences, and keyword alignment.
+  - Features **dynamic OpenRouter free-tier discovery & ranker** ($0 API cost) with automatic multi-model fallback and deterministic rule evaluation.
+- 📁 **Automated Application Staging (`/inbox/`):**
+  - Generates tailored, job-specific executive Resumes (`.pdf` + `.md`), customized Cover Letters (`.pdf` + `.md`), LinkedIn outreach guidance, and full metadata briefs.
+- 📊 **Executive Review Dashboard (`inbox/index.html`):**
+  - Self-contained, responsive HTML dashboard with interactive SVG donut/bar charts, multi-term search (`+` AND, `,` OR), dynamic geographical/role taxonomy filters, and terminal action triggers.
+- 💻 **Cross-Platform & On-Demand:** Runs effortlessly on **Windows, macOS, and Linux** with simple on-demand CLI commands.
+
+---
+
+## 🚀 Quickstart Guide
+
+### 1. Prerequisites & Installation
+
+Clone the repository and install dependencies in a Python 3.10+ virtual environment:
+
+```bash
+# Clone the public repository
+git clone https://github.com/aunsal89/ACE.git
+cd ACE
+
+# Create and activate virtual environment
+# On Linux / macOS:
+python3 -m venv venv
+source venv/bin/activate
+
+# On Windows (PowerShell):
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Install requirements
+pip install -r requirements.txt
+```
+
+---
+
+### 2. Interactive Setup Wizard (Fastest)
+
+Run the guided onboarding wizard to configure your API keys, candidate profile, and ingest your CV in under 2 minutes:
+
+```bash
+python run.py setup
+```
+
+The wizard will interactively:
+1. Prompt for your AI credentials (e.g. **Google Gemini free API key** from [Google AI Studio](https://aistudio.google.com/) or **OpenRouter**).
+2. Configure optional sourcing channels (SerpApi, Apify, Gmail, Telegram).
+3. Prompt for your Candidate Profile (Name, Email, Location, Target Titles, Min Net Salary).
+4. Ingest and structure your existing CV (`.pdf`, `.md`, or `.txt`).
+5. Initialize the local SQLite database and register your profile.
+
+---
+
+### 3. Run the Autonomous Pipeline
+
+Run end-to-end multi-channel sourcing, AI scoring, application drafting, and dashboard generation:
+
+```bash
+# Execute full pipeline for active candidate
+python run.py pipeline
+
+# Or run with dynamic OpenRouter model refresh
+python run.py pipeline --refresh-models
+
+# Or run a non-destructive dry-run
+python run.py pipeline --dry-run
+```
+
+Open `inbox/index.html` in your web browser to explore your interactive review dashboard and staged application dossiers!
+
+---
+
+## 🛠️ CLI Command Reference
+
+| Command | Description |
+| :--- | :--- |
+| `python run.py setup` | Interactive step-by-step onboarding wizard for API keys and candidate CV |
+| `python run.py pipeline` | Execute full multi-channel sourcing, AI scoring, drafting, and notification pipeline |
+| `python run.py import-cv <path>` | Ingest a PDF, MD, or TXT CV and extract structured sources of truth |
+| `python run.py tenant list` | List all configured candidate profiles on this device |
+| `python run.py tenant switch <id>` | Switch the active candidate profile |
+| `python run.py tenant show [id]` | Display tenant configuration, target preferences, and CV sources |
+| `python run.py tenant create` | Add a new candidate tenant to this device |
+| `python run.py dashboard` | Regenerate the interactive HTML review dashboard in `/inbox/` |
+| `python run.py status` | Display system overview, tenant info, and database pipeline statistics |
+| `python run.py list-jobs` | List sourced job opportunities in terminal with status and track filters |
+| `python run.py score` | Run LLM fit evaluation on discovered jobs |
+| `python run.py draft` | Synthesize tailored PDF/MD application dossiers into `/inbox/` |
+| `python run.py stage <job_id>` | Force stage application dossier for a specific opportunity ID |
+| `python run.py approve <job_id>` | Approve application and mark status as `APPLIED` |
+| `python run.py reject <job_id>` | Reject an opportunity and mark status as `REJECTED` |
+| `python run.py test-notify` | Send diagnostic test alerts to Telegram and Gmail SMTP |
+| `python run.py refresh-models` | Discover, rank, and cache active OpenRouter zero-cost models |
+
+---
+
+## 🔑 Environment Configuration (`.env`)
+
+You can create or update `.env` in the root directory (see [`.env.example`](.env.example)):
+
+```dotenv
+# --- LLM Providers (Only ONE required to start) ---
+GEMINI_API_KEY=your_gemini_api_key_here          # Free at aistudio.google.com
+OPENROUTER_API_KEY=your_openrouter_key_here      # Optional free models cascade
+OPENAI_API_KEY=your_openai_key_here              # Optional
+ANTHROPIC_API_KEY=your_anthropic_key_here        # Optional
+
+# --- Sourcing APIs (Optional) ---
+SERPAPI_API_KEY=your_serpapi_key_here            # Google Jobs live search
+APIFY_API_TOKEN=your_apify_token_here            # LinkedIn live search
+GMAIL_IMAP_USER=your_email@gmail.com             # Headless LinkedIn Alert ingestion
+GMAIL_IMAP_PASSWORD=your_app_password_here
+
+# --- Real-Time Mobile Alerts (Optional) ---
+TELEGRAM_BOT_TOKEN=your_bot_token_here           # Real-time mobile alerts
+TELEGRAM_CHAT_ID=your_chat_id_here
+```
+
+---
+
+## 📊 Executive Review Dashboard (`inbox/index.html`)
+
+ACE automatically compiles an interactive HTML dashboard:
+- **Zero External Dependencies:** Self-contained, responsive, lightweight executive design.
+- **Dynamic Visual Analytics:** Real-time SVG donut charts and interactive bar charts aggregated across geography and role taxonomy.
+- **Dual-Dimension Filtering:** Filter by pipeline state (`Staged Packages`, `Queued`, `Evaluated`, `Applied`, `Rejected`) and Track.
+- **Multi-Term Search:** Supports Boolean expressions (e.g. `London + Embedded`, `Remote, Singapore`).
+- **1-Click Review Actions:** Instant terminal command copy (`python run.py stage <id>`, `python run.py approve <id>`).
+
+---
+
+## 👨‍💻 Architect & Principal Developer
+
+**Ahmet Halit Ünsal**  
+*Senior Engineering Leader & Systems Architect*  
+- 🌐 **Portfolio & Case Studies:** [ahmethalitunsal.com](https://www.ahmethalitunsal.com)  
+- 🔗 **LinkedIn:** [linkedin.com/in/ahmet-halit-unsal](https://www.linkedin.com/in/ahmet-halit-unsal/)  
+- 🐙 **GitHub:** [github.com/aunsal89](https://github.com/aunsal89)  
+- ✉️ **Email:** [ahmethalitunsal@gmail.com](mailto:ahmethalitunsal@gmail.com)  
+
+### 💼 Hire the Creator
+Ahmet brings 15+ years of professional engineering experience and 8+ years managing 30-engineer cross-functional teams across:
+- **Embedded Software Leadership:** Model-Based Design (MATLAB/Simulink), ISO 26262 ASIL D, AUTOSAR, EV Powertrains (VCU, MCU, BMS, Inverters), and PMSM motor control.
+- **Quantitative & High-Throughput Systems:** Architect of **AURA** (24/7 automated algorithmic trading architecture, walk-forward optimization, dynamic risk engines).
+
+---
+
+## ☕ Support & Sponsorship
+
+If ACE has accelerated your career, saved you hours of application prep, or helped you land high-impact interviews, consider supporting the open-source maintenance of this project:
+
+- 💖 **GitHub Sponsors:** [sponsor/aunsal89](https://github.com/sponsors/aunsal89)
+- ☕ **Buy Me a Coffee:** [buymeacoffee.com/aunsal](https://buymeacoffee.com/aunsal)
+- 🪙 **Crypto Support:**
+  - **USDT (TRC-20):** `TMX4i6Q6g7dF8uT1a6z3K9vXyZ1W2M4nL5`
+  - **Bitcoin (BTC):** `bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh`
+  - **Ethereum (ETH):** `0x71C83f7fB008A2d3A8679A814343f8B51352eB4A`
+
+---
+
+## 📄 License & Legal Notice
+
+Autonomous Career Engine (ACE) is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.  
+See [LICENSE](LICENSE) for full details.
 
 ```text
-+----------------------------------------------------------------------------------------------------+
-|                                    1. MULTI-CHANNEL SOURCING                                       |
-|  - Domestic Defense Scrapers: Baykar, ASELSAN, Vizyoner Genç, TUSAŞ, Roketsan                      |
-|  - Global Job Board: Google Jobs (SerpApi - 2 high-intent targeted queries)                        |
-|  - LinkedIn Email Alerts: Headless Gmail IMAP Sourcing + Unauthenticated Guest Details API         |
-|  - Professional Network: LinkedIn Guest Scraper (Apify with mock fixture fallback)                 |
-+----------------------------------------------------------------------------------------------------+
-                                                  │
-                                                  ▼
-+----------------------------------------------------------------------------------------------------+
-|                                    2. SCORING & FIT ENGINE                                         |
-|  - Primary: Google Gemini (gemini-2.5-flash) via GEMINI_API_KEY                                    |
-|  - Dynamic Fallback: OpenRouter Free-Tier Router (Heuristic Ranking + Level 1/2 Resilience)        |
-|  - Deterministic Safety Net: Strict keyword & criteria evaluator (100% offline resilience)        |
-|  - Tracks: Track A (Embedded Software Leadership) & Track B (Quantitative Development - AURA)      |
-+----------------------------------------------------------------------------------------------------+
-                                                  │
-                                                  ▼
-+----------------------------------------------------------------------------------------------------+
-|                               3. APPLICATION PACKAGE GENERATION                                    |
-|  - Outputs staged in /inbox/<track>/<YYYY-MM-DD>/<company>_<role>_<id>/                            |
-|  - Generated Assets: Tailored Resume (.md + .pdf), Cover Letter (.md + .pdf),                      |
-|                      LinkedIn Guidance (.md), Job Details (.md)                                    |
-+----------------------------------------------------------------------------------------------------+
-                                 │
-                                 ▼
-+----------------------------------------------------------------------------------------------------+
-|                               4. VISUAL HTML REVIEW DASHBOARD                                      |
-|  - Self-contained, responsive dashboard at /inbox/index.html                                       |
-|  - Path-independent strictly relative links to folders, PDF resumes, and cover letters             |
-|  - Search, track filtering, and one-click copy buttons for terminal approval/rejection commands     |
-+----------------------------------------------------------------------------------------------------+
-                          │                                                  │
-                          ▼                                                  ▼
-+------------------------------------+             +-------------------------------------------------+
-|     5. REAL-TIME NOTIFICATIONS     |             |         6. AUTOMATED GIT SYNCHRONIZATION        |
-|  - Telegram Bot: Instant summary   |             |  - Staged packages & index.html auto-pushed     |
-|  - Gmail SMTP: Styled HTML report  |             |  - Systematic refresh: review via `git pull`    |
-+------------------------------------+             +-------------------------------------------------+
+Copyright (C) 2026 Ahmet Halit Ünsal <ahmethalitunsal@gmail.com>
 ```
 
----
-
-## 📁 Repository & Directory Hierarchy
-
-```text
-portfolio/
-├── CLAUDE.md                  # Claude frontend reference
-├── GEMINI.md                  # Comprehensive architectural reference & system directives
-├── README.md                  # Operational guide, CLI use cases & user reference
-├── .env                       # Central credentials & API keys
-├── web/                       # Astro 6 + React 19 Portfolio Frontend (ahmethalitunsal.com)
-│   ├── src/content/           # Master Markdown sources of truth (CV, Projects, Toolbox)
-│   └── src/components/        # Hero, Timeline, Ventures, Education, Skills, Contact
-└── career-engine/             # Autonomous Career Engine Orchestrator
-    ├── run.py                 # CLI executable entry point
-    ├── config/                # config.yaml & tenants/aunsal/profile.yaml
-    ├── data/                  # SQLite DB (career_engine.db) & OpenRouter cache (openrouter_free_models.json)
-    ├── deploy/systemd/        # Systemd timer & service unit templates
-    ├── inbox/                 # Staged application packages & review hub
-    │   ├── index.html         # Self-contained HTML review dashboard (open in browser)
-    │   ├── track_a_embedded/  # Track A: Embedded Leadership (MBD, ISO 26262, AUTOSAR, Motor Control)
-    │   │   └── YYYY-MM-DD/    # Dated batch run folder
-    │   │       └── <company>_<role>_<id>/
-    │   │           ├── Resume_Ahmet_Halit_Ünsal_<company>.md
-    │   │           ├── Resume_Ahmet_Halit_Ünsal_<company>.pdf
-    │   │           ├── Cover_Letter_<company>.md
-    │   │           ├── Cover_Letter_<company>.pdf
-    │   │           ├── Job_Details.md
-    │   │           └── LinkedIn_Guidance.md
-    │   └── track_b_quant/     # Track B: Quantitative Development (AURA, Algorithmic Execution)
-    │       └── YYYY-MM-DD/
-    │           └── <company>_<role>_<id>/
-    ├── src/                   # Core Python pipeline modules
-    │   ├── sourcing/          # Multi-channel scrapers (Defense, Google Jobs, Gmail LinkedIn, Apify)
-    │   ├── scoring/           # LLM fit scorer & dynamic OpenRouter free-tier router
-    │   ├── applicator/        # Markdown & Unicode PDF generator with Education integration
-    │   ├── database/          # SQLite models, repository & deduplication
-    │   ├── notifications/     # Telegram & Gmail notification dispatcher
-    │   └── utils/             # Dashboard generator, Unicode PDF renderer, Hashing & Git sync
-    └── tests/                 # Full unit test suite (35 unit tests)
-```
-
----
-
-## 🔄 End-to-End Execution Flow & Guarantees
-
-### 1. Sourcing & Deduplication Idempotency
-- Every discovered job listing generates a deterministic **SHA-256 hash** derived from `(normalized_company, normalized_title, location, url)`.
-- When the scraper runs, existing jobs in the database are recognized and marked as `is_new=False`.
-- **Idempotency Guarantee:** Running the pipeline multiple times will **never** generate duplicate inbox packages or redundant notification alerts.
-
-### 2. Fit Scoring & OpenRouter Resilient Cascade
-- High-intent scoring evaluates candidates against dual-track constraints:
-  - **Track A (Embedded Leadership):** 15+ years experience, 8+ years leadership (30+ engineers), MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control/EV, Istanbul/Ankara, $\ge \$8,600$ USD/month net.
-  - **Track B (Quantitative Developer):** AURA algorithmic architecture, CCXT, walk-forward optimization, execution algorithms across Europe, APAC, and China (excluding US).
-- If Gemini or OpenRouter encounters rate limits (HTTP 429) or transient outages, the system executes **Level 1 exponential backoff with jitter** and **Level 2 inter-model cascading fallback** across top free models (`nvidia/nemotron`, `minimax`, `google/gemma`). If all APIs fail, it transparently falls back to a deterministic offline evaluator.
-
-### 3. Application Generation & Systematic Dashboard Refresh
-- For every job scored $\ge 80$ (`QUEUED`), the engine drafts:
-  - **Tailored Executive Resume** (Markdown + PDF) with complete professional experience and candidate education background appended at the end.
-  - **Comprehensive Cover Letter** (Markdown + PDF) detailing leadership scaling, functional safety, powertrain architectures, or AURA quantitative trading systems, including direct Job URLs.
-  - **`Job_Details.md`** containing original URLs, review action commands, AI match scoring rationale, and description snippets.
-  - **LinkedIn Guidance** prompts for targeted outreach.
-- **Visual HTML Review Dashboard:** Staged packages and state changes systematically regenerate `inbox/index.html`.
-- **Automated Git Push:** On pipeline completion, the server automatically commits all staged packages and `inbox/index.html` to GitHub `origin/main`.
-
-### 4. Remote Review Workflow via `git pull`
-- Each weekly automated execution through `career-sourcing.service` systematically regenerates `inbox/index.html` and pushes changes to GitHub.
-- When you run `git pull origin main` on any local PC or laptop, you can immediately double-click `career-engine/inbox/index.html` in your browser. All links to folders and PDFs work seamlessly because paths are strictly relative.
-
----
-
-## 🎯 Practical CLI Use Cases & Operational Playbook
-
-All commands must be executed using the designated Conda Python interpreter `/home/nsl/miniconda3/envs/lnxenv/bin/python` from the `career-engine/` directory.
-
-### Use Case 1: Open and Refresh the HTML Review Dashboard
-To regenerate or inspect the self-contained visual review hub at any time:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py dashboard
-```
-*Action:* Open `career-engine/inbox/index.html` in any web browser to view, search, filter, and review all opportunities across Track A and Track B.
-
-### Use Case 2: Run the Full Autonomous Pipeline Manually
-To trigger a complete run (sourcing $\to$ model cache refresh $\to$ scoring $\to$ package drafting $\to$ dashboard regeneration $\to$ notification $\to$ git push):
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py pipeline --refresh-models
-```
-
-### Use Case 3: Review and Approve a Staged Opportunity
-After applying to an opportunity on a company portal, mark it as `APPLIED` using its 8-character ID (found in the folder name or copied with one click from the HTML dashboard):
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py approve f82e8bc8
-```
-*Effect:* Atomically updates the database state to `APPLIED`, records an audit log, and immediately refreshes `inbox/index.html`.
-
-### Use Case 4: Reject an Opportunity
-If an opportunity does not match current preferences:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py reject f82e8bc8
-```
-*Effect:* Updates database state to `REJECTED`, records audit history, and updates `inbox/index.html`.
-
-### Use Case 5: Draft Staged Packages for Queued Jobs
-To generate or re-draft resumes, cover letters, and `Job_Details.md` for all QUEUED opportunities:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py draft
-```
-
-### Use Case 6: Inspect System Status and Opportunity Metrics
-To inspect database aggregates, active tenant profile, and job counts across states:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py status
-```
-
-### Use Case 7: Filter and Query Job Opportunities
-```bash
-# List all Track A Embedded Leadership jobs ready for review
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-jobs --status QUEUED --track TRACK_A
-
-# List all Track B Quant Trading opportunities
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py list-jobs --track TRACK_B
-```
-
-### Use Case 8: Refresh OpenRouter Free Model Discovery Cache
-To query OpenRouter's dynamic model catalog, rank free zero-cost models, and update `data/openrouter_free_models.json`:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py refresh-models --limit 10
-```
-
-### Use Case 9: Test Notification Channels (Telegram & Gmail)
-To verify your `.env` Telegram bot token and Gmail SMTP credentials:
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python run.py test-notify
-```
-
----
-
-## ⚙️ Scheduling & Automation (`systemd`)
-
-The system runs automatically via a weekly `systemd` timer configured for **every Monday at 08:00 AM**:
-
-```bash
-# 1. Install unit files
-sudo cp /home/nsl/Portfolio/career-engine/deploy/systemd/career-sourcing.service /etc/systemd/system/
-sudo cp /home/nsl/Portfolio/career-engine/deploy/systemd/career-sourcing.timer /etc/systemd/system/
-
-# 2. Reload daemon
-sudo systemctl daemon-reload
-
-# 3. Enable and activate weekly timer
-sudo systemctl enable --now career-sourcing.timer
-
-# 4. Check timer schedule
-systemctl list-timers | grep career-sourcing
-```
-
-- **Catch-up resilience (`Persistent=true`):** If `vsmlnx` is offline Monday at 08:00 AM, the pipeline triggers immediately upon boot.
-- **Jitter protection (`RandomizedDelaySec=300`):** Adds a random 0–5 minute offset to prevent thundering herd API requests.
-- **Systematic Git Push & Dashboard Sync:** Every scheduled run updates `inbox/index.html` and pushes to `origin/main` so that `git pull` from any device gives the latest visual state.
-
----
-
-## 🔐 Environment Configuration (`.env`)
-
-Template located in root `/home/nsl/Portfolio/.env`:
-
-```bash
-# LLM Providers
-GEMINI_API_KEY="AIzaSy..."               # Primary scoring & drafting evaluator
-OPENROUTER_API_KEY="sk-or-v1-..."         # Dynamic free-tier resilient fallback router
-
-# Notifications
-TELEGRAM_BOT_TOKEN="123456789:ABC..."    # Telegram Bot API token
-TELEGRAM_CHAT_ID="123456789"             # Telegram Chat / User ID
-SMTP_USER="aunsal89@gmail.com"           # Gmail account for SMTP notifications
-SMTP_PASSWORD="xxxx xxxx xxxx xxxx"      # Gmail 16-character App Password
-NOTIFICATION_EMAIL="aunsal89@gmail.com"  # Notification recipient
-
-# Sourcing APIs (Optional)
-SERPAPI_API_KEY="xxx"                    # Google Jobs ingestion
-APIFY_API_TOKEN="apify_api_xxx"          # LinkedIn Guest Scraper (falls back to mock if quota exceeded)
-```
-
----
-
-## 🧪 Testing Suite
-
-```bash
-/home/nsl/miniconda3/envs/lnxenv/bin/python -m pytest /home/nsl/Portfolio/career-engine/tests
-```
-
-Full suite passes **35 unit tests** across configuration, database CRUD, deduplication hashing, OpenRouter dynamic router resilience, scoring, PDF rendering with HTML entity decoding, Job Details generation, dashboard creation, and multi-channel sourcing (including headless Gmail LinkedIn email ingestion).
+Under AGPL-3.0, you are free to use, inspect, and modify this software. If you run a modified version on a server or provide network access to it, you MUST make the corresponding source code publicly available under the same license with all author notices preserved. Commercial repackaging without open-source contribution is strictly prohibited.
