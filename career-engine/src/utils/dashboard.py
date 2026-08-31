@@ -1,7 +1,8 @@
 """
 HTML Review Dashboard Generator for Career Engine staged jobs in /inbox/.
 Produces a self-contained, responsive, zero-external-dependency HTML dashboard at inbox/index.html
-with executive-grade light theme, sticky top navigation, interactive charts, multi-term search, and sorting.
+with executive-grade light theme, dynamic taxonomy aggregation, dual-dimension filtering (Track & Status),
+sticky top navigation, interactive charts, multi-term search, and sorting.
 """
 
 from __future__ import annotations
@@ -20,56 +21,79 @@ from src.database.repository import JobRepository
 from src.utils.logger import logger
 
 
-def normalize_region_group(location: Optional[str]) -> str:
-    """Normalize free-text location into high-signal geographical region groupings."""
-    if not location:
-        return "Unspecified"
-    loc = location.lower()
-    if "singapore" in loc:
+def normalize_region_group(location: Optional[str], is_remote: bool = False) -> str:
+    """Dynamically normalize free-text location into high-signal geographical region groupings."""
+    if not location or location.strip() == "":
+        return "Remote / Anywhere" if is_remote else "Unspecified"
+    loc = location.strip()
+    loc_l = loc.lower()
+
+    if "singapore" in loc_l:
         return "Singapore"
-    if any(k in loc for k in ("turkey", "türkiye", "ankara", "istanbul", "gebze", "kocaeli", "eskişehir")):
-        if any(k in loc for k in ("istanbul", "gebze", "kocaeli", "marmara", "hadımköy")):
+    if any(k in loc_l for k in ("turkey", "türkiye", "ankara", "istanbul", "gebze", "kocaeli", "eskişehir", "hadımköy", "elmadağ")):
+        if any(k in loc_l for k in ("istanbul", "gebze", "kocaeli", "marmara", "hadımköy")):
             return "Turkey (Istanbul / Marmara)"
-        if any(k in loc for k in ("ankara", "eskişehir", "elmadağ", "kahramankazan", "macunköy", "lalahan")):
+        if any(k in loc_l for k in ("ankara", "eskişehir", "elmadağ", "kahramankazan", "macunköy", "lalahan")):
             return "Turkey (Ankara)"
-        return "Turkey"
-    if any(k in loc for k in ("united kingdom", "england", "london", "uk", "cambridge", "bristol", "norwich", "norfolk", "gloucester", "hampshire", "doncaster", "hull")):
-        if "london" in loc:
+        return "Turkey (Other)"
+    if any(k in loc_l for k in ("united kingdom", "england", "london", "uk", "cambridge", "bristol", "norwich", "norfolk", "gloucester", "hampshire", "doncaster", "hull")):
+        if "london" in loc_l:
             return "UK (London)"
         return "UK (Regional / Other)"
-    if any(k in loc for k in ("germany", "deutschland", "munich", "kassel", "ulm", "dissen", "manching", "bavaria", "hesse")):
+    if any(k in loc_l for k in ("germany", "deutschland", "munich", "kassel", "ulm", "dissen", "manching", "bavaria", "hesse")):
         return "Germany"
-    if any(k in loc for k in ("netherlands", "eindhoven", "nootdorp", "brabant", "holland")):
+    if any(k in loc_l for k in ("netherlands", "eindhoven", "nootdorp", "brabant", "holland")):
         return "Netherlands"
-    if any(k in loc for k in ("china", "suzhou", "wuxi", "changzhou", "shanghai", "beijing", "shenzhen")):
-        return "China / APAC"
-    if any(k in loc for k in ("remote", "anywhere")):
+    if any(k in loc_l for k in ("china", "suzhou", "wuxi", "changzhou", "shanghai", "beijing", "shenzhen")):
+        return "China (APAC Hubs)"
+    if any(k in loc_l for k in ("hong kong", "hk")):
+        return "Hong Kong"
+    if any(k in loc_l for k in ("switzerland", "zurich", "geneva")):
+        return "Switzerland"
+    if any(k in loc_l for k in ("remote", "anywhere")):
         return "Remote / Anywhere"
-    # Fallback to the last component of location
-    parts = location.split(",")
-    return parts[-1].strip() if parts else location.strip()
+
+    # Dynamic fallback: Extract city and country
+    parts = [p.strip() for p in loc.split(",") if p.strip()]
+    if len(parts) >= 2:
+        return f"{parts[-2]}, {parts[-1]}"
+    elif parts:
+        return parts[-1]
+    return "Other Regions"
 
 
 def normalize_position_group(title: Optional[str]) -> str:
-    """Normalize free-text job title into executive role taxonomy."""
+    """Dynamically normalize free-text job title into executive role taxonomy."""
     if not title:
-        return "Other Technical"
+        return "Specialized Technical"
     t = title.lower()
-    if any(k in t for k in ("quantitative developer", "quant developer", "trading systems", "execution", "c# quantitative")):
-        return "Quantitative Developer"
-    if any(k in t for k in ("quantitative analyst", "quant analyst", "quantitative research", "quant research", "prime finance", "algorithmic trading platforms")):
-        return "Quantitative Analyst / Research"
-    if any(k in t for k in ("director", "head of", "abteilungsleiter", "fachbereichsleiter", "engineering manager", "software project manager", "müdür")):
-        return "Leadership / Management"
-    if any(k in t for k in ("lead", "lider", "takım lideri", "principal", "kıdemli", "architect", "mimar", "flight control system (fcs) team lead")):
-        return "Lead / Principal / Architect"
+
+    # Domain patterns
+    if any(k in t for k in ("quantitative developer", "quant developer", "trading systems", "execution", "c# quantitative", "algorithmic trading", "trading bot")):
+        return "Quantitative Developer & Trading"
+    if any(k in t for k in ("quantitative analyst", "quant analyst", "quantitative research", "quant research", "prime finance", "algorithmic trading platforms", "machine learning strategies")):
+        return "Quantitative Research & Analytics"
     if any(k in t for k in ("flight control", "uçuş kontrol", "aviyonik", "avionics", "güdüm")):
-        return "Avionics & Flight Systems"
+        return "Avionics & Flight Control"
     if any(k in t for k in ("motor control", "traction control", "güç elektroniği", "power electronics", "inverter", "elektrikli güç")):
         return "Power Electronics & Motor Control"
-    if any(k in t for k in ("embedded", "gömülü", "firmware")):
-        return "Embedded & Firmware"
-    return "Other Technical"
+    if any(k in t for k in ("head of", "director", "abteilungsleiter", "fachbereichsleiter", "engineering manager", "software project manager", "müdür")):
+        return "Executive & Engineering Management"
+    if any(k in t for k in ("lead", "lider", "takım lideri", "principal", "kıdemli", "architect", "mimar")):
+        return "Lead / Principal / Architect"
+    if any(k in t for k in ("embedded", "gömülü", "firmware", "rtos", "autosar")):
+        return "Embedded & Firmware Systems"
+
+    # Dynamic token extraction for new emerging titles
+    clean_t = re.sub(r"[\(\)\[\]/\-,\|]", " ", t)
+    words = clean_t.split()
+    stop_words = {"and", "or", "the", "in", "of", "for", "with", "at", "senior", "junior", "iii", "ii", "i", "level", "m/w/d", "w/m/d", "f/m/d", "all", "genders"}
+    cleaned_words = [w.capitalize() for w in words if w not in stop_words and len(w) > 2]
+    if len(cleaned_words) >= 2:
+        return f"{cleaned_words[0]} {cleaned_words[1]}"
+    elif cleaned_words:
+        return f"{cleaned_words[0]} Engineering"
+    return "Specialized Engineering"
 
 
 def generate_inbox_dashboard(
@@ -161,7 +185,7 @@ def generate_inbox_dashboard(
             except Exception:
                 pass
 
-        region_group = normalize_region_group(job.location)
+        region_group = normalize_region_group(job.location, job.is_remote)
         pos_group = normalize_position_group(job.title)
 
         job_cards_data.append({
@@ -198,8 +222,11 @@ def generate_inbox_dashboard(
     track_a_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_A")
     track_b_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_B")
     pending_count = sum(1 for j in job_cards_data if j.get("folder_rel_path"))
+    pending_track_a = sum(1 for j in job_cards_data if j.get("folder_rel_path") and j["track"] == "TRACK_A")
+    pending_track_b = sum(1 for j in job_cards_data if j.get("folder_rel_path") and j["track"] == "TRACK_B")
     approved_count = sum(1 for j in job_cards_data if j["status"] == "APPLIED")
     rejected_count = sum(1 for j in job_cards_data if j["status"] == "REJECTED")
+    queued_eval_count = sum(1 for j in job_cards_data if j["status"] in ("QUEUED", "EVALUATED") and not j.get("folder_rel_path"))
 
     html_content = _build_html_template(
         tenant=tenant,
@@ -209,8 +236,11 @@ def generate_inbox_dashboard(
             "track_a": track_a_count,
             "track_b": track_b_count,
             "pending": pending_count,
+            "pending_track_a": pending_track_a,
+            "pending_track_b": pending_track_b,
             "approved": approved_count,
             "rejected": rejected_count,
+            "queued_eval": queued_eval_count,
         },
         generated_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
@@ -268,7 +298,7 @@ def _build_html_template(
     body {{
       background-color: var(--bg-page);
       color: var(--text-main);
-      padding: 24px;
+      padding: 20px 24px 60px 24px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
     }}
@@ -280,8 +310,8 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      padding: 24px 28px;
-      margin-bottom: 20px;
+      padding: 22px 26px;
+      margin-bottom: 18px;
       box-shadow: var(--shadow-sm);
     }}
     .header-top {{
@@ -290,7 +320,7 @@ def _build_html_template(
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }}
     .header-title h1 {{
       font-size: 22px;
@@ -317,14 +347,14 @@ def _build_html_template(
     }}
     .stats-bar {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
     }}
     .stat-card {{
       background: var(--bg-page);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 12px 16px;
+      padding: 10px 14px;
       text-align: left;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -335,7 +365,7 @@ def _build_html_template(
       transform: translateY(-1px);
     }}
     .stat-card .val {{
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--text-main);
       line-height: 1.2;
@@ -346,7 +376,7 @@ def _build_html_template(
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      margin-top: 4px;
+      margin-top: 3px;
     }}
 
     /* Analytics Overview Section */
@@ -354,7 +384,7 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
       box-shadow: var(--shadow-sm);
       overflow: hidden;
       transition: all 0.2s ease;
@@ -363,7 +393,7 @@ def _build_html_template(
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 20px;
+      padding: 12px 18px;
       background: var(--bg-surface-subtle);
       border-bottom: 1px solid var(--border-subtle);
       cursor: pointer;
@@ -376,7 +406,7 @@ def _build_html_template(
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
       color: var(--text-main);
     }}
@@ -390,32 +420,32 @@ def _build_html_template(
       border: 1px solid var(--border-strong);
       border-radius: 6px;
       padding: 4px 10px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       color: var(--text-muted);
       cursor: pointer;
     }}
     .analytics-content {{
-      padding: 20px;
+      padding: 16px 18px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 20px;
+      gap: 16px;
     }}
     .chart-box {{
       background: var(--bg-page);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 14px;
+      padding: 12px 14px;
       display: flex;
       flex-direction: column;
     }}
     .chart-box h3 {{
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-dim);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -429,8 +459,8 @@ def _build_html_template(
     .chart-items-list {{
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      max-height: 240px;
+      gap: 6px;
+      max-height: 220px;
       overflow-y: auto;
       padding-right: 4px;
     }}
@@ -438,8 +468,8 @@ def _build_html_template(
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 10px;
-      border-radius: 6px;
+      padding: 5px 8px;
+      border-radius: 5px;
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       font-size: 12px;
@@ -495,18 +525,18 @@ def _build_html_template(
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      padding: 8px 0;
+      gap: 14px;
+      padding: 4px 0;
     }}
     .donut-svg {{
-      width: 110px;
-      height: 110px;
+      width: 95px;
+      height: 95px;
       transform: rotate(-90deg);
     }}
     .donut-legend {{
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       font-size: 12px;
     }}
     .donut-legend-item {{
@@ -514,7 +544,7 @@ def _build_html_template(
       align-items: center;
       gap: 8px;
       cursor: pointer;
-      padding: 4px 8px;
+      padding: 3px 6px;
       border-radius: 4px;
       transition: background 0.15s;
     }}
@@ -523,8 +553,8 @@ def _build_html_template(
       font-weight: 600;
     }}
     .legend-color-dot {{
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
       display: inline-block;
     }}
@@ -534,27 +564,27 @@ def _build_html_template(
       position: sticky;
       top: 0;
       z-index: 900;
-      background: rgba(255, 255, 255, 0.96);
+      background: rgba(255, 255, 255, 0.97);
       backdrop-filter: blur(10px);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      padding: 14px 18px;
-      margin-bottom: 20px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
       box-shadow: var(--shadow-md);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }}
-    .controls-top {{
+    .controls-row-1 {{
       display: flex;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 10px;
       align-items: center;
       justify-content: space-between;
     }}
     .search-wrapper {{
       flex: 1;
-      min-width: 300px;
+      min-width: 280px;
       position: relative;
       display: flex;
       align-items: center;
@@ -564,8 +594,8 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-strong);
       color: var(--text-main);
-      padding: 8px 36px 8px 14px;
-      border-radius: 8px;
+      padding: 8px 34px 8px 12px;
+      border-radius: 6px;
       font-size: 13px;
       outline: none;
       transition: all 0.15s;
@@ -603,8 +633,8 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-strong);
       color: var(--text-main);
-      padding: 7px 12px;
-      border-radius: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
       font-size: 12px;
       font-weight: 500;
       outline: none;
@@ -613,25 +643,40 @@ def _build_html_template(
     .sort-control select:focus {{
       border-color: var(--accent-blue);
     }}
-    .controls-bottom {{
+
+    .controls-row-2 {{
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
       justify-content: space-between;
       border-top: 1px solid var(--border-subtle);
-      padding-top: 10px;
+      padding-top: 8px;
+    }}
+    .nav-filters-group {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }}
+    .filter-pills-label {{
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
     }}
     .filter-pills {{
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 5px;
+      align-items: center;
     }}
     .pill {{
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       color: var(--text-muted);
-      padding: 5px 12px;
+      padding: 4px 10px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
@@ -649,10 +694,22 @@ def _build_html_template(
       border-color: var(--accent-blue);
       box-shadow: var(--shadow-sm);
     }}
+    .pill-track-toggle {{
+      padding: 3px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+    }}
+    .pill-track-toggle.active {{
+      background: var(--text-main);
+      color: #ffffff;
+      border-color: var(--text-main);
+    }}
+
     .active-filter-tags {{
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
+      gap: 5px;
       align-items: center;
     }}
     .active-filter-tag {{
@@ -660,7 +717,7 @@ def _build_html_template(
       color: var(--accent-blue);
       border: 1px solid rgba(37, 99, 235, 0.25);
       border-radius: 4px;
-      padding: 3px 8px;
+      padding: 2px 7px;
       font-size: 11px;
       font-weight: 600;
       display: inline-flex;
@@ -677,7 +734,7 @@ def _build_html_template(
       background: none;
       border: 1px dashed var(--border-strong);
       color: var(--text-dim);
-      padding: 3px 8px;
+      padding: 2px 7px;
       border-radius: 4px;
       font-size: 11px;
       cursor: pointer;
@@ -694,17 +751,33 @@ def _build_html_template(
       font-weight: 500;
     }}
 
+    /* Staged Sub-selector Banner */
+    .staged-subnav {{
+      background: var(--accent-blue-light);
+      border: 1px solid rgba(37, 99, 235, 0.2);
+      border-radius: 6px;
+      padding: 6px 12px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+    }}
+    .staged-subnav-label {{
+      font-weight: 600;
+      color: var(--accent-blue);
+    }}
+
     /* Jobs Grid */
     .jobs-grid {{
       display: grid;
       grid-template-columns: 1fr;
-      gap: 14px;
+      gap: 12px;
     }}
     .job-card {{
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 10px;
-      padding: 18px 20px;
+      padding: 16px 18px;
       transition: all 0.15s ease;
       box-shadow: var(--shadow-sm);
     }}
@@ -721,13 +794,13 @@ def _build_html_template(
       margin-bottom: 10px;
     }}
     .card-title-group h2 {{
-      font-size: 17px;
+      font-size: 16px;
       font-weight: 700;
       color: var(--text-main);
       letter-spacing: -0.01em;
     }}
     .card-title-group .company {{
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--accent-blue);
       margin-top: 2px;
@@ -735,7 +808,7 @@ def _build_html_template(
     .card-meta {{
       font-size: 12px;
       color: var(--text-muted);
-      margin-top: 6px;
+      margin-top: 5px;
       display: flex;
       gap: 14px;
       flex-wrap: wrap;
@@ -743,15 +816,15 @@ def _build_html_template(
     }}
     .badges {{
       display: flex;
-      gap: 6px;
+      gap: 5px;
       flex-wrap: wrap;
       align-items: center;
     }}
     .badge {{
       font-size: 11px;
       font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 5px;
+      padding: 2px 7px;
+      border-radius: 4px;
       letter-spacing: 0.02em;
     }}
     .badge-track-a {{
@@ -787,8 +860,8 @@ def _build_html_template(
     .score-badge {{
       font-size: 11px;
       font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 5px;
+      padding: 2px 7px;
+      border-radius: 4px;
       border: 1px solid transparent;
     }}
     .score-high {{
@@ -825,7 +898,7 @@ def _build_html_template(
       background: var(--bg-page);
       border: 1px solid var(--border-subtle);
       border-radius: 6px;
-      padding: 8px 12px;
+      padding: 7px 11px;
     }}
     details.desc-accordion summary {{
       cursor: pointer;
@@ -966,15 +1039,12 @@ def _build_html_template(
     }}
     .empty-state {{
       text-align: center;
-      padding: 48px 24px;
+      padding: 40px 24px;
       background: var(--bg-surface);
       border: 1px dashed var(--border-strong);
       border-radius: 10px;
       color: var(--text-dim);
       font-size: 14px;
-    }}
-    .empty-state button {{
-      margin-top: 10px;
     }}
   </style>
 </head>
@@ -993,11 +1063,11 @@ def _build_html_template(
           <div class="val" id="stat-total">{stats["total"]}</div>
           <div class="label">Total Sourced</div>
         </div>
-        <div class="stat-card" onclick="setPrimaryFilter('track_a')">
+        <div class="stat-card" onclick="setTrackFilter('TRACK_A')">
           <div class="val" style="color: var(--accent-amber);">{stats["track_a"]}</div>
           <div class="label">Track A (Embedded)</div>
         </div>
-        <div class="stat-card" onclick="setPrimaryFilter('track_b')">
+        <div class="stat-card" onclick="setTrackFilter('TRACK_B')">
           <div class="val" style="color: var(--accent-purple);">{stats["track_b"]}</div>
           <div class="label">Track B (Quant)</div>
         </div>
@@ -1013,6 +1083,10 @@ def _build_html_template(
           <div class="val" style="color: var(--accent-rose);">{stats["rejected"]}</div>
           <div class="label">Rejected</div>
         </div>
+        <div class="stat-card" onclick="setPrimaryFilter('queued_evaluated')">
+          <div class="val" style="color: var(--text-dim);">{stats["queued_eval"]}</div>
+          <div class="label">Queued / Evaluated</div>
+        </div>
       </div>
     </header>
 
@@ -1021,7 +1095,7 @@ def _build_html_template(
       <div class="analytics-header" onclick="toggleAnalytics()">
         <div class="analytics-title">
           <span>📊 Interactive Sourcing & Pipeline Overview</span>
-          <span class="analytics-subtitle">(Click any chart segment, region, or position group to filter)</span>
+          <span class="analytics-subtitle">(Click any chart segment, region, or role group to filter)</span>
         </div>
         <button class="toggle-btn" id="analyticsToggleBtn">▾ Hide Overview</button>
       </div>
@@ -1030,23 +1104,23 @@ def _build_html_template(
         <div class="chart-box">
           <h3>🎯 Track Breakdown <span class="chart-hint">Click to filter</span></h3>
           <div class="donut-container" id="trackDonutContainer">
-            <!-- Rendered by JS -->
+            <!-- Rendered dynamically by JS -->
           </div>
         </div>
 
         <!-- Geographical Regions Bar Chart -->
         <div class="chart-box">
-          <h3>📍 Top Regions & Hubs <span class="chart-hint">Click region to filter</span></h3>
+          <h3>📍 Dynamic Regions & Hubs <span class="chart-hint">Click region to filter</span></h3>
           <div class="chart-items-list" id="regionsChartList">
-            <!-- Rendered by JS -->
+            <!-- Rendered dynamically by JS -->
           </div>
         </div>
 
         <!-- Position & Role Groupings -->
         <div class="chart-box">
-          <h3>💼 Position Taxonomy <span class="chart-hint">Click role to filter</span></h3>
+          <h3>💼 Dynamic Role Taxonomy <span class="chart-hint">Click role to filter</span></h3>
           <div class="chart-items-list" id="positionsChartList">
-            <!-- Rendered by JS -->
+            <!-- Rendered dynamically by JS -->
           </div>
         </div>
 
@@ -1054,7 +1128,7 @@ def _build_html_template(
         <div class="chart-box">
           <h3>📋 Application Pipeline <span class="chart-hint">Click status to filter</span></h3>
           <div class="chart-items-list" id="statusChartList">
-            <!-- Rendered by JS -->
+            <!-- Rendered dynamically by JS -->
           </div>
         </div>
       </div>
@@ -1062,7 +1136,7 @@ def _build_html_template(
 
     <!-- Persistent Sticky Controls Bar -->
     <div class="sticky-controls">
-      <div class="controls-top">
+      <div class="controls-row-1">
         <div class="search-wrapper">
           <input type="text" id="searchInput" placeholder='Search by title, company, location (e.g. "Singapore + Quant", "London, Embedded", ID...)' autocomplete="off" />
           <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()" title="Clear Search">✕</button>
@@ -1080,18 +1154,37 @@ def _build_html_template(
         </div>
       </div>
 
-      <div class="controls-bottom">
-        <div class="filter-pills">
-          <button class="pill active" data-filter="all" onclick="setPrimaryFilter('all')">All ({stats["total"]})</button>
-          <button class="pill" data-filter="track_a" onclick="setPrimaryFilter('track_a')">Track A ({stats["track_a"]})</button>
-          <button class="pill" data-filter="track_b" onclick="setPrimaryFilter('track_b')">Track B ({stats["track_b"]})</button>
-          <button class="pill" data-filter="staged" onclick="setPrimaryFilter('staged')">Staged Packages ({stats["pending"]})</button>
-          <button class="pill" data-filter="applied" onclick="setPrimaryFilter('applied')">Applied ({stats["approved"]})</button>
-          <button class="pill" data-filter="rejected" onclick="setPrimaryFilter('rejected')">Rejected ({stats["rejected"]})</button>
+      <div class="controls-row-2">
+        <div class="nav-filters-group">
+          <!-- Primary Status Tabs -->
+          <div class="filter-pills" id="statusFilterPills">
+            <span class="filter-pills-label">Status:</span>
+            <button class="pill active" data-filter="all" onclick="setPrimaryFilter('all')">All ({stats["total"]})</button>
+            <button class="pill" data-filter="staged" onclick="setPrimaryFilter('staged')">📦 Staged Packages ({stats["pending"]})</button>
+            <button class="pill" data-filter="applied" onclick="setPrimaryFilter('applied')">🚀 Applied ({stats["approved"]})</button>
+            <button class="pill" data-filter="rejected" onclick="setPrimaryFilter('rejected')">❌ Rejected ({stats["rejected"]})</button>
+            <button class="pill" data-filter="queued_evaluated" onclick="setPrimaryFilter('queued_evaluated')">⏳ Queued / Evaluated ({stats["queued_eval"]})</button>
+          </div>
+
+          <!-- Secondary Track Filter Tabs -->
+          <div class="filter-pills" id="trackFilterPills">
+            <span class="filter-pills-label">Track:</span>
+            <button class="pill pill-track-toggle active" data-track="all" onclick="setTrackFilter('all')">All Tracks</button>
+            <button class="pill pill-track-toggle" data-track="TRACK_A" onclick="setTrackFilter('TRACK_A')">Track A (Embedded)</button>
+            <button class="pill pill-track-toggle" data-track="TRACK_B" onclick="setTrackFilter('TRACK_B')">Track B (Quant)</button>
+          </div>
         </div>
 
         <div class="active-filter-tags" id="activeFilterTags"></div>
         <div class="results-count-bar" id="resultsCountBar"></div>
+      </div>
+
+      <!-- Dedicated Staged Packages Sub-Filter Banner -->
+      <div class="staged-subnav" id="stagedSubNav">
+        <span class="staged-subnav-label">📦 Staged Packages Filter:</span>
+        <button class="btn btn-primary" id="btnStagedAll" onclick="setTrackFilter('all')">All Staged ({stats["pending"]})</button>
+        <button class="btn btn-folder" id="btnStagedTrackA" onclick="setTrackFilter('TRACK_A')">Track A Embedded Staged ({stats["pending_track_a"]})</button>
+        <button class="btn btn-url" id="btnStagedTrackB" onclick="setTrackFilter('TRACK_B')">Track B Quant Staged ({stats["pending_track_b"]})</button>
       </div>
     </div>
 
@@ -1103,7 +1196,8 @@ def _build_html_template(
 
   <script>
     const JOBS = {jobs_json};
-    let currentFilter = "all";
+    let currentFilter = "all";         // 'all', 'staged', 'applied', 'rejected', 'queued_evaluated'
+    let currentTrack = "all";          // 'all', 'TRACK_A', 'TRACK_B'
     let selectedRegion = null;
     let selectedPosition = null;
     let searchQuery = "";
@@ -1140,31 +1234,36 @@ def _build_html_template(
 
     function setPrimaryFilter(filter) {{
       currentFilter = filter;
-      document.querySelectorAll(".pill").forEach(p => {{
-        if (p.getAttribute("data-filter") === filter) {{
-          p.classList.add("active");
-        }} else {{
-          p.classList.remove("active");
-        }}
+      document.querySelectorAll("#statusFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-filter") === filter);
+      }});
+      
+      // Show or hide dedicated staged packages subnav
+      const stagedSub = document.getElementById("stagedSubNav");
+      if (currentFilter === "staged") {{
+        stagedSub.style.display = "flex";
+      }} else {{
+        stagedSub.style.display = "none";
+      }}
+
+      renderAll();
+    }}
+
+    function setTrackFilter(track) {{
+      currentTrack = track;
+      document.querySelectorAll("#trackFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-track") === track);
       }});
       renderAll();
     }}
 
     function setRegionFilter(region) {{
-      if (selectedRegion === region) {{
-        selectedRegion = null;
-      }} else {{
-        selectedRegion = region;
-      }}
+      selectedRegion = (selectedRegion === region) ? null : region;
       renderAll();
     }}
 
     function setPositionFilter(pos) {{
-      if (selectedPosition === pos) {{
-        selectedPosition = null;
-      }} else {{
-        selectedPosition = pos;
-      }}
+      selectedPosition = (selectedPosition === pos) ? null : pos;
       renderAll();
     }}
 
@@ -1177,13 +1276,18 @@ def _build_html_template(
 
     function resetAllFilters() {{
       currentFilter = "all";
+      currentTrack = "all";
       selectedRegion = null;
       selectedPosition = null;
       searchQuery = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("searchClearBtn").style.display = "none";
-      document.querySelectorAll(".pill").forEach(p => {{
+      document.getElementById("stagedSubNav").style.display = "none";
+      document.querySelectorAll("#statusFilterPills .pill").forEach(p => {{
         p.classList.toggle("active", p.getAttribute("data-filter") === "all");
+      }});
+      document.querySelectorAll("#trackFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-track") === "all");
       }});
       renderAll();
     }}
@@ -1231,12 +1335,15 @@ def _build_html_template(
 
     function filterJobs(jobList) {{
       return jobList.filter(j => {{
-        // Primary filter tab
-        if (currentFilter === "track_a" && j.track !== "TRACK_A") return false;
-        if (currentFilter === "track_b" && j.track !== "TRACK_B") return false;
+        // Status filter tab
         if (currentFilter === "staged" && !j.folder_rel_path) return false;
         if (currentFilter === "applied" && j.status !== "APPLIED") return false;
         if (currentFilter === "rejected" && j.status !== "REJECTED") return false;
+        if (currentFilter === "queued_evaluated" && (j.status !== "QUEUED" && j.status !== "EVALUATED" || j.folder_rel_path)) return false;
+
+        // Track filter
+        if (currentTrack === "TRACK_A" && j.track !== "TRACK_A") return false;
+        if (currentTrack === "TRACK_B" && j.track !== "TRACK_B") return false;
 
         // Region filter
         if (selectedRegion && j.region_group !== selectedRegion) return false;
@@ -1278,8 +1385,7 @@ def _build_html_template(
       const trackAPct = ((trackACount / total) * 100).toFixed(0);
       const trackBPct = ((trackBCount / total) * 100).toFixed(0);
       
-      const circumference = 2 * Math.PI * 38; // r=38 -> ~238.76
-      const trackAOffset = 0;
+      const circumference = 2 * Math.PI * 38;
       const trackAStroke = (trackACount / total) * circumference;
       const trackBStroke = (trackBCount / total) * circumference;
 
@@ -1292,11 +1398,11 @@ def _build_html_template(
             stroke-dasharray="${{trackBStroke}} ${{circumference}}" stroke-dashoffset="-${{trackAStroke}}" style="transition: stroke-dasharray 0.3s;" />
         </svg>
         <div class="donut-legend">
-          <div class="donut-legend-item ${{currentFilter === 'track_a' ? 'active' : ''}}" onclick="setPrimaryFilter('track_a')">
+          <div class="donut-legend-item ${{currentTrack === 'TRACK_A' ? 'active' : ''}}" onclick="setTrackFilter('${{currentTrack === 'TRACK_A' ? 'all' : 'TRACK_A'}}')">
             <span class="legend-color-dot" style="background: #d97706;"></span>
             <span>Track A (Embedded): <strong>${{trackACount}}</strong> (${{trackAPct}}%)</span>
           </div>
-          <div class="donut-legend-item ${{currentFilter === 'track_b' ? 'active' : ''}}" onclick="setPrimaryFilter('track_b')">
+          <div class="donut-legend-item ${{currentTrack === 'TRACK_B' ? 'active' : ''}}" onclick="setTrackFilter('${{currentTrack === 'TRACK_B' ? 'all' : 'TRACK_B'}}')">
             <span class="legend-color-dot" style="background: #7c3aed;"></span>
             <span>Track B (Quant): <strong>${{trackBCount}}</strong> (${{trackBPct}}%)</span>
           </div>
@@ -1304,7 +1410,7 @@ def _build_html_template(
       `;
       document.getElementById("trackDonutContainer").innerHTML = donutHtml;
 
-      // 2. Geographical Regions
+      // 2. Dynamic Geographical Regions
       const regionCounts = {{}};
       JOBS.forEach(j => {{
         const r = j.region_group || "Unspecified";
@@ -1328,10 +1434,10 @@ def _build_html_template(
       }}).join("");
       document.getElementById("regionsChartList").innerHTML = regionsHtml;
 
-      // 3. Position Groupings
+      // 3. Dynamic Position Groupings
       const posCounts = {{}};
       JOBS.forEach(j => {{
-        const p = j.position_group || "Other Technical";
+        const p = j.position_group || "Specialized Technical";
         posCounts[p] = (posCounts[p] || 0) + 1;
       }});
       const sortedPos = Object.entries(posCounts).sort((a, b) => b[1] - a[1]);
@@ -1363,7 +1469,7 @@ def _build_html_template(
         "Staged Packages": "staged",
         "Applied": "applied",
         "Rejected": "rejected",
-        "Queued / Evaluated": "all",
+        "Queued / Evaluated": "queued_evaluated",
       }};
 
       const statusHtml = Object.entries(statusCounts).map(([st, cnt]) => {{
@@ -1387,6 +1493,10 @@ def _build_html_template(
       const container = document.getElementById("activeFilterTags");
       const tags = [];
 
+      if (currentTrack !== "all") {{
+        const tLabel = currentTrack === "TRACK_A" ? "Track A (Embedded)" : "Track B (Quant)";
+        tags.push(`<span class="active-filter-tag">🎯 Track: ${{tLabel}} <span class="tag-remove" onclick="setTrackFilter('all')">✕</span></span>`);
+      }}
       if (selectedRegion) {{
         tags.push(`<span class="active-filter-tag">📍 Region: ${{selectedRegion}} <span class="tag-remove" onclick="setRegionFilter('${{selectedRegion.replace(/'/g, "\\\'")}}')">✕</span></span>`);
       }}
@@ -1397,7 +1507,7 @@ def _build_html_template(
         tags.push(`<span class="active-filter-tag">🔍 Search: "${{searchQuery}}" <span class="tag-remove" onclick="clearSearch()">✕</span></span>`);
       }}
 
-      if (tags.length > 0 || currentFilter !== "all") {{
+      if (tags.length > 0 || currentFilter !== "all" || currentTrack !== "all") {{
         tags.push(`<button class="btn-reset-filters" onclick="resetAllFilters()">Reset All Filters</button>`);
       }}
 
@@ -1415,10 +1525,10 @@ def _build_html_template(
 
       if (sorted.length === 0) {{
         let helpMsg = "No job listings match the current filters.";
-        if (searchQuery && currentFilter !== "all") {{
+        if (searchQuery && (currentFilter !== "all" || currentTrack !== "all")) {{
           const allMatches = JOBS.filter(j => matchesSearch(j, searchQuery));
           if (allMatches.length > 0) {{
-            helpMsg += ` Found ${{allMatches.length}} match(es) in other categories! <button class="btn btn-primary" style="margin-left: 8px;" onclick="setPrimaryFilter('all')">View in All Tabs</button>`;
+            helpMsg += ` Found ${{allMatches.length}} match(es) in other categories! <button class="btn btn-primary" style="margin-left: 8px;" onclick="resetAllFilters()">View in All Tabs</button>`;
           }}
         }}
         grid.innerHTML = `
