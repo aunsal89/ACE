@@ -44,26 +44,23 @@ class ApplicationGenerator(BaseApplicator):
         if cv_path and cv_path.exists():
             self.master_cv = cv_path.read_text(encoding="utf-8")
         else:
-            self.master_cv = "# Professional Experience\n\n15+ years experience in embedded systems and leadership."
+            self.master_cv = "# Professional Experience\n\nExperience and technical track record."
 
         edu_path = self.tenant.sources_of_truth.education_markdown
         if edu_path and edu_path.exists():
             self.master_education = edu_path.read_text(encoding="utf-8")
         else:
-            self.master_education = (
-                "**MSc, Advanced Control Theory** | Istanbul Technical University | 2014 – 2016\n\n"
-                "**BSc, Electrical & Computer Engineering** | Iowa State University | 2007 – 2011"
-            )
+            self.master_education = "# Education\n\nAcademic background and certifications."
 
     def generate_package(self, job: JobListing, evaluation: ScoringEvaluation) -> ApplicationPackageCreate:
         """Generate tailored Resume.md, Cover_Letter.md, LinkedIn_Guidance.md, Job_Details.md, and PDFs."""
         track = evaluation.track
-        track_folder = "track_a_embedded" if track == "TRACK_A" else "track_b_quant"
+        track_folder = "track_a_primary" if track == "TRACK_A" else "track_b_secondary"
         date_folder = datetime.now().strftime("%Y-%m-%d")
 
         comp_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.company).strip("_").lower()
         job_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.title[:20]).strip("_").lower()
-        package_dir = self.inbox_dir / track_folder / date_folder / f"{comp_slug}_{job_slug}_{job.id[:8]}"
+        package_dir = self.inbox_dir / self.tenant.tenant_id / track_folder / date_folder / f"{comp_slug}_{job_slug}_{job.id[:8]}"
         package_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Draft Tailored Resume Markdown (with Experience and Education)
@@ -73,7 +70,7 @@ class ApplicationGenerator(BaseApplicator):
 
         # 2. Render Resume PDF
         resume_pdf_path = package_dir / f"Resume_{self.tenant.name.replace(' ', '_')}_{comp_slug}.pdf"
-        render_markdown_to_pdf(resume_md, resume_pdf_path, doc_title=f"{self.tenant.name} - Executive Resume")
+        render_markdown_to_pdf(resume_md, resume_pdf_path, doc_title=f"{self.tenant.name} - Resume")
 
         # 3. Draft Tailored Cover Letter Markdown
         cover_md = self._draft_cover_letter(job, evaluation)
@@ -110,29 +107,34 @@ class ApplicationGenerator(BaseApplicator):
     def _draft_tailored_resume(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Synthesize tailored executive CV matching JD priorities including Education at the end."""
         t = self.tenant
-        ta = t.tracks.track_a
-        tb = t.tracks.track_b
+        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
 
-        if evaluation.track == "TRACK_A":
-            summary = (
-                f"Senior Engineering Leader & Chief Embedded Systems Architect with 15+ years professional experience and "
-                f"8+ years directorship managing cross-functional teams up to 30 engineers. Deep technical mastery in Model-Based Design "
-                f"(MATLAB/Simulink/Stateflow), EV Powertrains (VCU/MCU/Inverters/BMS), PMSM FOC motor control, AUTOSAR, and ISO 26262 ASIL D compliance."
-            )
-            skills = ", ".join(ta.core_competencies[:10])
-        else:
-            summary = (
-                f"Quantitative Software Engineer & Automated Trading Architect. Creator of AURA (24/7 automated spot & equity execution engine). "
-                f"Expert in walk-forward optimization, successive halving, multi-layer risk management, PAXG defensive overlays, and high-throughput Python/C++ architectures."
-            )
-            skills = ", ".join(tb.core_competencies[:8])
+        # Collect contact links
+        links_parts = []
+        if t.links.website:
+            links_parts.append(f"**Website:** {t.links.website}")
+        if t.links.linkedin:
+            links_parts.append(f"**LinkedIn:** {t.links.linkedin}")
+        if t.links.github:
+            links_parts.append(f"**GitHub:** {t.links.github}")
+        if t.links.portfolio_showcase:
+            links_parts.append(f"**Portfolio:** {t.links.portfolio_showcase}")
+        links_line = " | ".join(links_parts) if links_parts else ""
 
-        # Clean education section for markdown resume
+        skills = ", ".join(track_profile.core_competencies[:10]) if track_profile.core_competencies else "Domain Architecture, Engineering Execution, High-Impact Delivery"
+        years_exp = getattr(track_profile.experience_requirements, "min_total_years", 5)
+
+        summary = (
+            f"Accomplished {job.title} professional with {years_exp}+ years of proven engineering expertise. "
+            f"Demonstrated track record of technical delivery, scalable architecture design, and domain leadership "
+            f"delivering high-reliability solutions for {job.company}."
+        )
+
         edu_body = self.master_education.replace("# Education", "").strip()
 
         return f"""# {t.name}
-**{t.location_current}** | **Email:** {t.email} | **Phone:** {t.phone}  
-**Website:** {t.links.website} | **GitHub:** {t.links.github} | **LinkedIn:** {t.links.linkedin}
+**{t.location_current}** | **Email:** {t.email}{f' | **Phone:** {t.phone}' if t.phone else ''}  
+{links_line}
 
 ---
 
@@ -140,8 +142,8 @@ class ApplicationGenerator(BaseApplicator):
 {summary}
 
 ## Tailored Competencies for {job.company} ({job.title})
-* **Core Technical Stack:** {skills}
-* **Product Showcase:** EduTrace ({t.product_engineering_showcase.url if t.product_engineering_showcase else 'edutrace.net'}) & AURA ({t.links.aura_showcase})
+* **Target Role Focus:** {job.title}
+* **Core Technical Competencies:** {skills}
 
 ---
 
@@ -157,27 +159,25 @@ class ApplicationGenerator(BaseApplicator):
     def _draft_cover_letter(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Draft tailored, comprehensive, metric-driven executive cover letter."""
         t = self.tenant
-        if evaluation.track == "TRACK_A":
-            body = (
-                f"I am writing to express my strong interest in the **{job.title}** position at **{job.company}**.\n\n"
-                f"With over 15 years of professional engineering experience—including 8+ years leading and directing multi-disciplinary engineering organizations of up to 30 engineers across 4 team leads—my background directly aligns with {job.company}'s requirements for high-reliability embedded software architecture, Model-Based Design (MBD), and mission-critical powertrain controls.\n\n"
-                f"Throughout my leadership tenure across automotive and defense electronics programs (NISO Technology, ECEMTAG, TÜBİTAK, TÜMOSAN), I have directed full product lifecycles from initial concept and dynamic modeling to dyno characterization and mass production. I maintain strict enforcement of **ISO 26262 ASIL D functional safety**, **ASPICE Level 2/3 processes**, **UN R155/R156 cybersecurity (CSMS)**, and **AUTOSAR** layered architectures across FreeRTOS and bare-metal platforms.\n\n"
-                f"On the technical front, I bring hands-on mastery in MATLAB/Simulink/Stateflow physical modeling, PMSM/IPMSM Field-Oriented Control (FOC, MTPA, flux-weakening), and complex EV powertrain controls (VCU, MCU, Traction Inverters, OBC, BMS). Complementing this is extensive experience establishing automated Hardware-in-the-Loop (HIL) simulation testbenches (dSpace MABX, Lauterbach Trace32) and Git-based CI/CD pipelines that dramatically compress verification cycles and eliminate integration bottlenecks.\n\n"
-                f"Beyond embedded systems, my end-to-end technical leadership is demonstrated in platforms like EduTrace (edutrace.net), highlighting my ability to scale complex architectures and bridge software, hardware, and product teams. I would welcome the opportunity to discuss how my technical ownership, executive leadership, and delivery focus can accelerate the engineering milestones at {job.company}."
-            )
-        else:
-            body = (
-                f"I am writing to present my candidacy for the **{job.title}** position at **{job.company}**.\n\n"
-                f"As the architect and developer of **AURA** (https://www.auratrading.org/), a proprietary 24/7 automated algorithmic trading and execution architecture spanning live crypto spot and equity markets, I combine deep quantitative software engineering with rigorous mathematical modeling and high-throughput system design.\n\n"
-                f"My quantitative background encompasses building continuous walk-forward optimization pipelines, successive halving parameter selection, multi-regime volatility detection, and multi-layered risk management engines featuring dynamic stop-loss/take-profit triggers and PAXG defensive overlays. I architect low-latency execution pipelines using modern Python 3.11 (AsyncIO, NumPy, pandas) and C++, interfacing directly with high-frequency exchange APIs (CCXT, WebSockets) and maintaining 24/7 reliability via Linux systemd daemons and telemetry watchdogs.\n\n"
-                f"In addition to quantitative finance, my track record in full-cycle product engineering (e.g., EduTrace at https://edutrace.net) underscores my disciplined approach to data structures, offline-first local state management, and multi-model AI workflows. I maintain rigorous test harnesses and analytical telemetry to ensure flawless runtime execution under high-stress market conditions.\n\n"
-                f"I am eager to leverage this proven algorithmic engineering rigour, quantitative modeling acumen, and low-latency infrastructure design to drive outsized returns and system resilience for {job.company}'s quantitative strategies."
-            )
+        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
+        skills = ", ".join(track_profile.core_competencies[:6]) if track_profile.core_competencies else "system design, technical leadership, and engineering rigor"
+        years_exp = getattr(track_profile.experience_requirements, "min_total_years", 5)
+
+        body = (
+            f"I am writing to express my enthusiastic interest in the **{job.title}** position at **{job.company}**.\n\n"
+            f"With over {years_exp} years of dedicated engineering experience, my technical background directly aligns with {job.company}'s requirements. "
+            f"Throughout my career, I have focused on building resilient systems, architecting mission-critical platforms, and driving technical ownership from concept to production.\n\n"
+            f"My hands-on experience encompasses {skills}. I maintain a disciplined approach to verification, robust architecture, and cross-functional collaboration, ensuring project milestones are met on schedule and with the highest quality standards.\n\n"
+            f"I would welcome the opportunity to discuss how my background, technical execution, and dedication can contribute to {job.company}'s engineering objectives."
+        )
+
+        links_parts = [p for p in [t.links.website, t.links.linkedin, t.links.github] if p]
+        links_footer = " | ".join(links_parts) if links_parts else ""
 
         return f"""# Cover Letter
 
 **Candidate:** {t.name}  
-**Contact:** {t.email} | {t.phone} | {t.location_current}  
+**Contact:** {t.email}{f' | {t.phone}' if t.phone else ''} | {t.location_current}  
 **Position:** {job.title}  
 **Target Organization:** {job.company} ({job.location or 'Global'})  
 **Job URL:** {job.url or 'N/A'}  
@@ -190,7 +190,7 @@ Dear Hiring Team & Leadership at {job.company},
 
 Sincerely,  
 **{t.name}**  
-{t.links.website} | {t.links.linkedin} | {t.links.github}
+{links_footer}
 """
 
     def _draft_job_details(self, job: JobListing, evaluation: ScoringEvaluation, comp_slug: str) -> str:
@@ -252,12 +252,9 @@ python run.py reject {job.id[:8]}
     def _draft_linkedin_guidance(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Step-by-step guidance for manual LinkedIn updates."""
         t = self.tenant
-        if evaluation.track == "TRACK_A":
-            headline = f"Director of Embedded Software & MBD | Automotive & Defense Electronics | ISO 26262 ASIL D | Team Leadership (30+ Eng)"
-            keywords = "Model-Based Design, MATLAB/Simulink, ISO 26262, AUTOSAR, PMSM Motor Control, EV Powertrain, Engineering Management"
-        else:
-            headline = f"Quantitative Software Engineer | Algorithmic Trading Systems (AURA) | High-Performance Python & C++ | Risk Regimes"
-            keywords = "Quantitative Development, Algorithmic Execution, Walk-Forward Optimization, CCXT, Risk Management, Systemd"
+        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
+        headline = f"{job.title} | {track_profile.name} | High-Impact Systems Architecture"
+        keywords = ", ".join(track_profile.core_competencies[:8]) if track_profile.core_competencies else "Software Architecture, Systems Engineering, Technical Leadership"
 
         return f"""# LinkedIn Guidance & Keyword Optimization for {job.company}
 
@@ -268,7 +265,7 @@ python run.py reject {job.id[:8]}
 - {keywords}
 
 ### 3. Tailored Connection Note / InMail Copy:
-"Hello, I noticed {job.company}'s open role for {job.title}. With 15+ years in embedded systems leadership / quantitative software engineering, I'd welcome the chance to connect and share insights on system architecture and scaling."
+"Hello, I noticed {job.company}'s open role for {job.title}. With my background in {track_profile.name}, I would welcome the chance to connect and discuss how my experience aligns with your engineering goals."
 """
 
     def draft_queued_jobs(self, job_id: Optional[str] = None) -> List[ApplicationPackage]:
@@ -318,4 +315,3 @@ python run.py reject {job.id[:8]}
         console.print("[bold green]✓ Inbox review dashboard updated at inbox/index.html[/bold green]")
 
         return packages
-

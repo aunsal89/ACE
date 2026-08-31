@@ -10,7 +10,7 @@ import requests
 
 from pydantic import BaseModel, Field, model_validator
 
-from src.config import LLMSettings, TenantProfile
+from src.config import LLMSettings, TenantProfile, load_tenant_profile, load_engine_config
 from src.database.models import JobListing, RecommendationType, TrackType
 from src.scoring.openrouter_router import OpenRouterManager, clean_and_repair_json
 from src.utils.logger import logger
@@ -38,12 +38,12 @@ class OpportunityEvaluationSchema(BaseModel):
 
         # 1. Normalize track
         raw_track = str(data.get("track") or data.get("assigned_track") or data.get("target_track") or "TRACK_A").upper()
-        if "B" in raw_track or "QUANT" in raw_track or "TRADING" in raw_track:
+        if "B" in raw_track or "SECONDARY" in raw_track or "QUANT" in raw_track:
             data["track"] = "TRACK_B"
         else:
             data["track"] = "TRACK_A"
 
-        # 2. Normalize overall_score / score / fit_score
+        # 2. Normalize overall_score
         score_val = (
             data.get("overall_score")
             if data.get("overall_score") is not None
@@ -103,100 +103,179 @@ class OpportunityEvaluationSchema(BaseModel):
         return data
 
 
-class ScoringLLMClient:
-    """Executes structured opportunity evaluation using LLMs or verified deterministic fallback."""
+class LLMScoringClient:
+    """
+    Multi-provider LLM client with Google Gemini, dynamic OpenRouter free-tier cascade,
+    Anthropic, OpenAI, and deterministic rule-based evaluation.
+    """
 
-    def __init__(self, llm_settings: LLMSettings, tenant: TenantProfile):
-        self.settings = llm_settings
-        self.tenant = tenant
-        self.gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
-        self.openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-        self.anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-        self.openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
-        self.openrouter_manager = OpenRouterManager(api_key=self.openrouter_key)
+    def __init__(self, settings: Optional[LLMSettings] = None, tenant: Optional[TenantProfile] = None):
+        if settings is None:
+            eng_cfg = load_engine_config()
+            self.settings = eng_cfg.llm
+        else:
+            self.settings = settings
 
-    def evaluate_fit(self, job: JobListing) -> Dict[str, Any]:
-        """
-        Evaluate job listing against dual-track tenant criteria.
-        Fallback chain:
-        1. Google Gemini (via official API key)
-        2. OpenRouter (dynamic heuristic-ranked free-tier models with dual-tier retry & cascade)
-        3. Deterministic high-precision rule scoring engine
-        """
-        # Step 1: Try Primary Provider (Google Gemini)
+        if tenant is None:
+            try:
+                self.tenant = load_tenant_profile()
+            except Exception:
+                # Placeholder tenant if none initialized yet
+                from src.config import TenantProfile
+                self.tenant = TenantProfile(tenant_id="default", name="Candidate", email="candidate@example.com")
+        else:
+            self.tenant = tenant
+
+        self.gemini_key = os.getenv("GEMINI_API_KEY")
+        self.openrouter_key = os.getenv("OPENROUTER_API_KEY")
+        self.anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+        self.openai_key = os.getenv("OPENAI_API_KEY")
+        self.openrouter_manager = OpenRouterManager()
+
+    def call_raw_prompt(self, prompt: str, system_prompt: Optional[str] = None) -> Optional[str]:
+        """Execute a raw text generation prompt using available LLM providers in fallback chain."""
+        # 1. Try Gemini
         if self.gemini_key:
             try:
-                res = self._evaluate_with_gemini(job)
-                if res and isinstance(res, dict) and "overall_score" in res:
-                    return res
+                from google import genai
+                from google.genai import types
+                client = genai.Client(api_key=self.gemini_key)
+                model_name = self.settings.providers.get("google-genai", {}).model or "gemini-2.5-flash"
+                contents = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
+                cfg = types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)
+                )
+                res = client.models.generate_content(model=model_name, contents=contents, config=cfg)
+                if res and res.text:
+                    return res.text
             except Exception as e:
-                logger.warning(f"Google Gemini GenAI evaluation failed: {e}. Cascading to OpenRouter fallback models.")
+                logger.warning(f"Gemini raw prompt failed: {e}")
 
-        # Step 2: Try OpenRouter Dynamic Resilient Free Models
+        # 2. Try OpenRouter
         if self.openrouter_key:
             try:
-                res_dict = self._evaluate_with_openrouter_dynamic(job)
-                if res_dict and "overall_score" in res_dict:
-                    return res_dict
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_key}",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "model": "google/gemma-4-31b-it:free",
+                    "messages": [
+                        {"role": "system", "content": system_prompt or "You are a helpful AI assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.2
+                }
+                resp = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data["choices"][0]["message"]["content"]
             except Exception as e:
-                logger.warning(f"OpenRouter dynamic evaluation failed: {e}. Cascading to deterministic fallback.")
+                logger.warning(f"OpenRouter raw prompt failed: {e}")
 
-        # Step 3: Optional Legacy Providers
-        if self.anthropic_key:
+        return None
+
+    def evaluate_fit(self, job: JobListing) -> OpportunityEvaluationSchema:
+        """
+        Evaluate candidate fit for a job listing against tenant profile.
+        Executes configured fallback chain with deterministic rule fallback.
+        """
+        for provider in self.settings.fallback_chain:
             try:
-                res = self._evaluate_with_anthropic(job)
-                if res:
-                    return res
-            except Exception as e:
-                logger.warning(f"Anthropic evaluation failed: {e}.")
+                if provider == "google-genai" and self.gemini_key:
+                    res = self._evaluate_with_gemini(job)
+                    if res:
+                        return OpportunityEvaluationSchema.model_validate(res)
 
-        if self.openai_key:
-            try:
-                res = self._evaluate_with_openai(job)
-                if res:
-                    return res
-            except Exception as e:
-                logger.warning(f"OpenAI evaluation failed: {e}.")
+                elif provider == "openrouter" and self.openrouter_key:
+                    res = self._evaluate_with_openrouter_dynamic(job)
+                    if res:
+                        return OpportunityEvaluationSchema.model_validate(res)
 
-        # Step 4: Deterministic Fallback Engine
-        logger.info("Falling back to deterministic rule scoring engine.")
-        return self._evaluate_deterministic(job)
+                elif provider == "anthropic" and self.anthropic_key:
+                    res = self._evaluate_with_anthropic(job)
+                    if res:
+                        return OpportunityEvaluationSchema.model_validate(res)
+
+                elif provider == "openai" and self.openai_key:
+                    res = self._evaluate_with_openai(job)
+                    if res:
+                        return OpportunityEvaluationSchema.model_validate(res)
+
+            except Exception as e:
+                logger.warning(f"Scoring provider '{provider}' failed for job {job.id[:8]}: {e}. Falling back to next...")
+
+        logger.info(f"Using deterministic rule-based evaluation for job {job.id[:8]}")
+        res = self._evaluate_deterministic(job)
+        return OpportunityEvaluationSchema.model_validate(res)
+
+    def _build_tenant_prompt_context(self) -> str:
+        """Construct candidate context string from tenant profile and sources of truth."""
+        t = self.tenant
+        ta = t.tracks.track_a
+        tb = t.tracks.track_b
+
+        lines = [
+            f"Candidate Name: {t.name}",
+            f"Current Location: {t.location_current}",
+            f"Primary Target Track: {ta.name}",
+            f"- Target Titles: {', '.join(ta.target_titles)}",
+            f"- Target Locations: {', '.join(ta.target_locations)}",
+            f"- Min Compensation: ${ta.compensation.min_monthly_net_usd:,.0f}/month {ta.compensation.currency}",
+            f"- Core Competencies: {', '.join(ta.core_competencies)}",
+            f"- Exclusions: {', '.join(ta.exclusions)}",
+        ]
+
+        if tb.enabled:
+            lines.extend([
+                f"Secondary Target Track: {tb.name}",
+                f"- Target Titles: {', '.join(tb.target_titles)}",
+                f"- Target Regions: {', '.join(tb.target_regions)}",
+                f"- Target Cities: {', '.join(tb.target_cities)}",
+                f"- Excluded Regions: {', '.join(tb.excluded_regions)}",
+                f"- Core Competencies: {', '.join(tb.core_competencies)}",
+            ])
+
+        # Add snippet of CV if available
+        cv_path = t.sources_of_truth.cv_markdown
+        if cv_path and cv_path.exists():
+            cv_text = cv_path.read_text(encoding="utf-8", errors="replace")
+            lines.append(f"\nCandidate Career History / CV:\n{cv_text[:3000]}")
+
+        return "\n".join(lines)
 
     def _evaluate_deterministic(self, job: JobListing) -> Dict[str, Any]:
-        """Deterministic, high-precision scoring engine."""
-        raw_desc = job.description_raw if job.description_raw else ""
-        title_desc = f"{job.title} {raw_desc}".lower()
-        loc_str = job.location if job.location else ""
-        company_loc = f"{job.company} {loc_str}".lower()
+        """Hard rule-based heuristic evaluator when API calls are unavailable."""
+        title_desc = f"{job.title} {job.description_raw or ''}".lower()
+        company_loc = f"{job.company} {job.location or ''}".lower()
 
-        # Track determination
-        if job.assigned_track == TrackType.TRACK_B:
-            chosen_track = "TRACK_B"
-        elif job.assigned_track == TrackType.TRACK_A:
-            chosen_track = "TRACK_A"
-        else:
-            is_b = any(k in title_desc for k in ["quant", "algorithmic trading", "trading", "hft", "execution"])
-            chosen_track = "TRACK_B" if is_b else "TRACK_A"
+        # Track assignment
+        assign_track_b = False
+        if self.tenant.tracks.track_b.enabled:
+            tb_titles = [t.lower() for t in self.tenant.tracks.track_b.target_titles]
+            if any(t in title_desc for t in tb_titles) or "quant" in title_desc or "trading" in title_desc:
+                assign_track_b = True
 
-        if chosen_track == "TRACK_A":
+        if not assign_track_b:
             ta = self.tenant.tracks.track_a
             matched_kws = [k for k in ta.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
-            exclusions = [ex for ex in ta.exclusions if ex.lower() in title_desc]
+            exclusions_hit = [e for e in ta.exclusions if e.lower() in title_desc]
 
-            tech_score = min(100.0, 60.0 + len(matched_kws) * 10.0)
-            lead_terms = ["director", "head", "manager", "lead", "architect", "chief", "lider", "mimar", "takım"]
-            leadership_score = 95.0 if any(lt in job.title.lower() for lt in lead_terms) else 75.0
+            loc_match = any(loc.lower().split(",")[0] in company_loc for loc in ta.target_locations) or job.is_remote
+            location_score = 100.0 if loc_match else 60.0
 
-            loc_match = any(loc.lower().split(",")[0].strip() in company_loc for loc in ta.target_locations) or job.is_remote
-            location_score = 100.0 if loc_match else 50.0
+            tech_score = min(100.0, 50.0 + len(matched_kws) * 10.0)
+            leadership_score = 90.0 if any(l in title_desc for l in ["lead", "director", "head", "manager", "chief", "principal", "architect"]) else 70.0
+            comp_score = 85.0
 
-            comp_score = 95.0
-            if job.salary_max and job.salary_currency == "USD" and job.salary_max < 90000:
-                comp_score = 50.0
-
-            fits = len(exclusions) == 0 and location_score >= 80 and tech_score >= 60
-            overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
-            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if len(exclusions) > 0 else "MANUAL_REVIEW"
+            if exclusions_hit:
+                fits = False
+                overall = 30.0
+                rec = "REJECT"
+            else:
+                overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
+                fits = overall >= 75.0 and location_score >= 60.0
+                rec = "QUEUE" if fits else "MANUAL_REVIEW" if overall >= 60.0 else "REJECT"
 
             return {
                 "track": "TRACK_A",
@@ -208,7 +287,7 @@ class ScoringLLMClient:
                 "fits_criteria": fits,
                 "matched_keywords": matched_kws[:6],
                 "missing_keywords": [k for k in ta.core_competencies if k not in matched_kws][:4],
-                "reasoning": f"Track A match: {len(matched_kws)} competencies matched. Leadership role verified.",
+                "reasoning": f"Track A evaluation: {len(matched_kws)} competencies matched. Location fit: {loc_match}.",
                 "recommendation": rec,
                 "model_used": "rule_engine_deterministic"
             }
@@ -216,18 +295,18 @@ class ScoringLLMClient:
         else:
             tb = self.tenant.tracks.track_b
             matched_kws = [k for k in tb.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
-            is_us = "united states" in company_loc or "usa" in company_loc or "ny" in company_loc
+            is_excluded = any(ex.lower() in company_loc for ex in tb.excluded_regions)
 
             loc_match = any(c.lower() in company_loc for c in tb.target_cities) or job.is_remote
-            location_score = 0.0 if is_us else 100.0 if loc_match else 70.0
+            location_score = 0.0 if is_excluded else 100.0 if loc_match else 70.0
 
             tech_score = min(100.0, 60.0 + len(matched_kws) * 10.0)
             leadership_score = 90.0
-            comp_score = 95.0
+            comp_score = 90.0
 
-            fits = not is_us and location_score >= 70 and tech_score >= 60
+            fits = not is_excluded and location_score >= 70 and tech_score >= 60
             overall = (tech_score * 0.45) + (location_score * 0.35) + (comp_score * 0.20)
-            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if is_us else "MANUAL_REVIEW"
+            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if is_excluded else "MANUAL_REVIEW"
 
             return {
                 "track": "TRACK_B",
@@ -239,7 +318,7 @@ class ScoringLLMClient:
                 "fits_criteria": fits,
                 "matched_keywords": matched_kws[:6],
                 "missing_keywords": [k for k in tb.core_competencies if k not in matched_kws][:4],
-                "reasoning": f"Track B match: Quant/execution role in target region ({job.location}). AURA architecture fit.",
+                "reasoning": f"Track B evaluation: Role in target region ({job.location}). Technical fit: {tech_score:.0f}%.",
                 "recommendation": rec,
                 "model_used": "rule_engine_deterministic"
             }
@@ -249,10 +328,11 @@ class ScoringLLMClient:
         from google.genai import types
 
         client = genai.Client(api_key=self.gemini_key)
-        prompt = f"""You are an executive career evaluation AI assessing job opportunities for Ahmet Halit Ünsal.
-Dual-track profiles:
-- Track A: Embedded Software Leadership / Directorship (15+ yrs exp, 8+ yrs managing teams up to 30 engineers, MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control, EV Inverters/BMS, Defense/Automotive in Istanbul/Ankara).
-- Track B: Quantitative Developer / Algorithmic Trading (AURA engine, CCXT, Python/C++, walk-forward optimization, execution algorithms in Europe/APAC/China, excluding US).
+        candidate_context = self._build_tenant_prompt_context()
+
+        prompt = f"""You are an executive career evaluation AI assessing job opportunities for the following candidate.
+
+{candidate_context}
 
 Evaluate this opportunity:
 Title: {job.title}
@@ -294,18 +374,15 @@ Return ONLY valid JSON matching this schema:
 
     def _evaluate_with_openrouter_dynamic(self, job: JobListing) -> Dict[str, Any]:
         """Evaluate job listing using dynamic OpenRouter free-tier engine with schema validation & cascading resilience."""
+        candidate_context = self._build_tenant_prompt_context()
         system_prompt = (
-            "You are an executive career evaluation AI assessing job opportunities for Ahmet Halit Ünsal.\n"
-            "Dual-track profiles:\n"
-            "- Track A: Embedded Software Leadership / Directorship (15+ yrs exp, 8+ yrs managing teams up to 30 engineers, MBD/Simulink, ISO 26262 ASIL D, AUTOSAR, Motor Control, EV Inverters/BMS, Defense/Automotive in Istanbul/Ankara).\n"
-            "- Track B: Quantitative Developer / Algorithmic Trading (AURA engine, CCXT, Python/C++, walk-forward optimization, execution algorithms in Europe/APAC/China, excluding US).\n\n"
-            "Candidate Background:\n"
-            "Ahmet Halit Ünsal: 15+ years experience, 8+ years leadership, MS & BS in Electrical/Computer Engineering, creator of AURA algorithmic trading system and EduTrace platform.\n\n"
+            f"You are an executive career evaluation AI assessing job opportunities for {self.tenant.name}.\n"
+            f"{candidate_context}\n\n"
             "Return ONLY a JSON object with keys: track, overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
         )
 
         user_content = (
-            f"Evaluate this job opportunity for Ahmet Halit Ünsal:\n"
+            f"Evaluate this job opportunity for {self.tenant.name}:\n"
             f"Title: {job.title}\n"
             f"Company: {job.company}\n"
             f"Location: {job.location or 'N/A'}\n"
@@ -333,3 +410,8 @@ Return ONLY valid JSON matching this schema:
 
     def _evaluate_with_openai(self, job: JobListing) -> Optional[Dict[str, Any]]:
         return None
+
+
+# Alias for backward compatibility
+ScoringLLMClient = LLMScoringClient
+
