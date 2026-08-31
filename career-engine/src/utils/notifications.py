@@ -26,23 +26,39 @@ for _candidate_env in [
         load_dotenv(_candidate_env, override=False)
 
 
+def clean_env_value(val: Optional[str]) -> str:
+    """
+    Clean and sanitize environment variable values.
+    Strips trailing inline comments (e.g. 'token # comment' -> 'token'),
+    surrounding quotes (single and double), and leading/trailing whitespace.
+    """
+    if not val:
+        return ""
+    val_str = str(val).strip()
+    if " #" in val_str:
+        val_str = val_str.split(" #", 1)[0].strip()
+    elif "\t#" in val_str:
+        val_str = val_str.split("\t#", 1)[0].strip()
+    return val_str.strip('"').strip("'").strip()
+
+
 class NotificationService:
     """Dispatches notifications to Telegram and Email (Gmail SMTP) with exponential backoff retries."""
 
     def __init__(self) -> None:
         # Telegram Settings
-        raw_tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'").strip()
+        raw_tok = clean_env_value(os.environ.get("TELEGRAM_BOT_TOKEN", ""))
         if raw_tok.lower().startswith("bot"):
             raw_tok = raw_tok[3:]
         self.telegram_token = raw_tok
-        self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip().strip('"').strip("'").strip()
+        self.telegram_chat_id = clean_env_value(os.environ.get("TELEGRAM_CHAT_ID", ""))
 
         # SMTP (Gmail) Settings
-        self.smtp_user = os.environ.get("SMTP_USER", "").strip().strip('"').strip("'").strip()
-        self.smtp_password = os.environ.get("SMTP_PASSWORD", "").strip().strip('"').strip("'").strip()
-        self.notification_email = os.environ.get("NOTIFICATION_EMAIL", self.smtp_user).strip().strip('"').strip("'").strip()
-        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip().strip('"').strip("'").strip()
-        raw_port = os.environ.get("SMTP_PORT", "587").strip().strip('"').strip("'").strip()
+        self.smtp_user = clean_env_value(os.environ.get("SMTP_USER", ""))
+        self.smtp_password = clean_env_value(os.environ.get("SMTP_PASSWORD", ""))
+        self.notification_email = clean_env_value(os.environ.get("NOTIFICATION_EMAIL", self.smtp_user))
+        self.smtp_host = clean_env_value(os.environ.get("SMTP_HOST", "smtp.gmail.com"))
+        raw_port = clean_env_value(os.environ.get("SMTP_PORT", "587"))
         self.smtp_port = int(raw_port) if raw_port.isdigit() else 587
 
     @property
@@ -100,6 +116,15 @@ class NotificationService:
                     current_text = re.sub(r"<[^>]+>", "", text)
                     continue
 
+                # If 404 Not Found, the Bot Token is invalid / rejected by Telegram API (permanent failure)
+                if resp.status_code == 404:
+                    logger.error(
+                        f"Telegram API returned HTTP 404 Not Found ({resp.text.strip()[:150]}). "
+                        "The configured TELEGRAM_BOT_TOKEN is invalid or unrecognized by Telegram. "
+                        "Aborting retries."
+                    )
+                    return False
+
                 # Parse response for rate limit retry_after
                 retry_after_delay = None
                 try:
@@ -109,8 +134,8 @@ class NotificationService:
                 except Exception:
                     pass
 
-                # Transient errors to retry: 404 (edge routing), 429 (rate limit), 500, 502, 503, 504
-                if resp.status_code in [404, 429, 500, 502, 503, 504]:
+                # Transient errors to retry: 429 (rate limit), 500, 502, 503, 504
+                if resp.status_code in [429, 500, 502, 503, 504]:
                     logger.warning(
                         f"Telegram API returned HTTP {resp.status_code} ({resp.text.strip()[:150]}) "
                         f"(attempt {attempt}/{max_retries})."
