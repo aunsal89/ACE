@@ -108,6 +108,8 @@ def interactive_setup_wizard(config: Optional[EngineConfig] = None) -> TenantPro
     ).strip()
 
     console.print("\n[bold yellow]═══ Step 2: Sourcing & Notification APIs (Optional) ═══[/bold yellow]")
+    console.print("[dim]Configure live search channels, Gmail LinkedIn alert scraping, and real-time mobile notifications.[/dim]\n")
+
     serpapi_key = Prompt.ask(
         "SerpApi Key [dim](optional, for Google Jobs live search at serpapi.com)[/dim]",
         default=existing_env.get("SERPAPI_API_KEY", "")
@@ -118,6 +120,18 @@ def interactive_setup_wizard(config: Optional[EngineConfig] = None) -> TenantPro
         default=existing_env.get("APIFY_API_TOKEN", "")
     ).strip()
 
+    gmail_user = Prompt.ask(
+        "Gmail Address [dim](optional, for LinkedIn job alert IMAP ingestion & SMTP email notifications)[/dim]",
+        default=existing_env.get("GMAIL_IMAP_USER", existing_env.get("IMAP_USER", existing_env.get("SMTP_USER", "")))
+    ).strip()
+
+    gmail_pass = ""
+    if gmail_user:
+        gmail_pass = Prompt.ask(
+            "Gmail App Password [dim](16-char password from myaccount.google.com/apppasswords)[/dim]",
+            default=existing_env.get("GMAIL_IMAP_PASSWORD", existing_env.get("IMAP_PASSWORD", existing_env.get("SMTP_PASSWORD", "")))
+        ).strip()
+
     telegram_token = Prompt.ask(
         "Telegram Bot Token [dim](optional, for real-time mobile job alerts)[/dim]",
         default=existing_env.get("TELEGRAM_BOT_TOKEN", "")
@@ -126,7 +140,7 @@ def interactive_setup_wizard(config: Optional[EngineConfig] = None) -> TenantPro
     telegram_chat_id = ""
     if telegram_token:
         telegram_chat_id = Prompt.ask(
-            "Telegram Chat ID",
+            "Telegram Chat ID [dim](e.g. from @userinfobot)[/dim]",
             default=existing_env.get("TELEGRAM_CHAT_ID", "")
         ).strip()
 
@@ -137,14 +151,49 @@ OPENROUTER_API_KEY={openrouter_key}
 OPENAI_API_KEY={openai_key}
 ANTHROPIC_API_KEY={anthropic_key}
 
+# Live Sourcing APIs
 SERPAPI_API_KEY={serpapi_key}
 APIFY_API_TOKEN={apify_token}
 
+# Gmail LinkedIn IMAP Ingestion & SMTP Alerts
+GMAIL_IMAP_USER={gmail_user}
+GMAIL_IMAP_PASSWORD={gmail_pass}
+IMAP_USER={gmail_user}
+IMAP_PASSWORD={gmail_pass}
+SMTP_USER={gmail_user}
+SMTP_PASSWORD={gmail_pass}
+NOTIFICATION_EMAIL={gmail_user}
+
+# Real-Time Mobile Alerts
 TELEGRAM_BOT_TOKEN={telegram_token}
 TELEGRAM_CHAT_ID={telegram_chat_id}
 """
     env_path.write_text(env_content, encoding="utf-8")
-    console.print("[bold green]✓ .env credentials file updated successfully.[/bold green]\n")
+
+    # Immediately reload environment variables into running process
+    from dotenv import load_dotenv
+    load_dotenv(env_path, override=True)
+    for k, v in [
+        ("GEMINI_API_KEY", gemini_key),
+        ("OPENROUTER_API_KEY", openrouter_key),
+        ("OPENAI_API_KEY", openai_key),
+        ("ANTHROPIC_API_KEY", anthropic_key),
+        ("SERPAPI_API_KEY", serpapi_key),
+        ("APIFY_API_TOKEN", apify_token),
+        ("GMAIL_IMAP_USER", gmail_user),
+        ("GMAIL_IMAP_PASSWORD", gmail_pass),
+        ("IMAP_USER", gmail_user),
+        ("IMAP_PASSWORD", gmail_pass),
+        ("SMTP_USER", gmail_user),
+        ("SMTP_PASSWORD", gmail_pass),
+        ("NOTIFICATION_EMAIL", gmail_user),
+        ("TELEGRAM_BOT_TOKEN", telegram_token),
+        ("TELEGRAM_CHAT_ID", telegram_chat_id),
+    ]:
+        if v:
+            os.environ[k] = v
+
+    console.print("[bold green]✓ .env credentials file updated and loaded into environment successfully.[/bold green]\n")
 
     # --- 2. Candidate Profile Setup ---
     console.print("[bold yellow]═══ Step 3: Candidate Profile & Target Career Preferences ═══[/bold yellow]")
@@ -575,8 +624,8 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     """Execute end-to-end career sourcing, scoring, and application drafting pipeline."""
     config = load_engine_config()
     tenant_mgr = TenantManager(config)
-    notifier = NotificationService()
 
+    # 1. Resolve tenants (will auto-trigger setup wizard if none exist on device)
     if getattr(args, "all_tenants", False):
         tenant_ids = tenant_mgr.list_available_tenants()
     elif getattr(args, "tenant_id", None):
@@ -584,6 +633,9 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
     else:
         default_tenant = _ensure_active_tenant(config)
         tenant_ids = [default_tenant.tenant_id]
+
+    # 2. Instantiate notifier AFTER setup ensures fresh .env credentials
+    notifier = NotificationService()
 
     console.print(BANNER)
     console.print(Panel(
@@ -596,14 +648,18 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         border_style="cyan"
     ))
 
-    if getattr(args, "refresh_models", False):
-        console.print("[bold cyan]Refreshing OpenRouter free-tier models cache...[/bold cyan]")
+    # Auto-refresh or discover OpenRouter models if requested or cache missing
+    cache_file = PROJECT_ROOT / "data" / "openrouter_free_models.json"
+    should_refresh_models = getattr(args, "refresh_models", False) or (os.environ.get("OPENROUTER_API_KEY") and not cache_file.exists())
+
+    if should_refresh_models:
+        console.print("[bold cyan]Discovering and caching active OpenRouter free models...[/bold cyan]")
         try:
             orm = OpenRouterManager()
-            orm.discover_and_rank_models(force_refresh=True)
-            console.print("[bold green]✓ OpenRouter free model cache successfully refreshed.[/bold green]")
+            discovered = orm.discover_and_rank_models(force_refresh=True)
+            console.print(f"[bold green]✓ Cached {len(discovered)} active OpenRouter free models at data/openrouter_free_models.json.[/bold green]")
         except Exception as e:
-            console.print(f"[yellow]⚠ Failed to refresh model cache: {e}[/yellow]")
+            console.print(f"[yellow]⚠ OpenRouter model discovery note: {e}[/yellow]")
 
     for tid in tenant_ids:
         tenant = tenant_mgr.get_tenant(tid)
@@ -615,7 +671,10 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         source_res = sourcing_mgr.run_sourcing_pipeline(scraper_name=getattr(args, "scraper", None), dry_run=getattr(args, "dry_run", False))
 
         if getattr(args, "dry_run", False):
-            console.print("[yellow]Dry-run enabled: skipping scoring, drafting, and notifications.[/yellow]")
+            # Refresh HTML Review Dashboard so discovered listings are viewable
+            generate_inbox_dashboard(config=config, tenant=tenant)
+            console.print("\n[yellow]⚡ Dry-run mode completed: Multi-channel listings sourced and HTML dashboard refreshed at inbox/index.html.[/yellow]")
+            console.print("[dim](Note: AI fit scoring and application dossier drafting into /inbox/ are bypassed in dry-run mode. Run 'python run.py pipeline' without --dry-run to generate tailored PDF resumes, cover letters, and review briefs.)[/dim]")
             continue
 
         # Phase 2: Scoring

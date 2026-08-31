@@ -80,11 +80,13 @@ class GmailLinkedInScraper(BaseScraper):
         self.imap_port = int(os.environ.get("IMAP_PORT", "993"))
         self.imap_user = (
             imap_user
+            or os.environ.get("GMAIL_IMAP_USER", "").strip()
             or os.environ.get("IMAP_USER", "").strip()
             or os.environ.get("SMTP_USER", "").strip()
         )
         self.imap_password = (
             imap_password
+            or os.environ.get("GMAIL_IMAP_PASSWORD", "").strip()
             or os.environ.get("IMAP_PASSWORD", "").strip()
             or os.environ.get("SMTP_PASSWORD", "").strip()
         )

@@ -16,9 +16,8 @@ import requests
 
 from src.utils.logger import logger, console
 
-# Ensure .env is always discovered and loaded
+# Ensure .env is always discovered and loaded dynamically
 for _candidate_env in [
-    Path("/home/nsl/Portfolio/.env"),
     Path(__file__).resolve().parent.parent.parent / ".env",
     Path.cwd() / ".env",
 ]:
@@ -54,8 +53,8 @@ class NotificationService:
         self.telegram_chat_id = clean_env_value(os.environ.get("TELEGRAM_CHAT_ID", ""))
 
         # SMTP (Gmail) Settings
-        self.smtp_user = clean_env_value(os.environ.get("SMTP_USER", ""))
-        self.smtp_password = clean_env_value(os.environ.get("SMTP_PASSWORD", ""))
+        self.smtp_user = clean_env_value(os.environ.get("SMTP_USER", "") or os.environ.get("GMAIL_IMAP_USER", "") or os.environ.get("IMAP_USER", ""))
+        self.smtp_password = clean_env_value(os.environ.get("SMTP_PASSWORD", "") or os.environ.get("GMAIL_IMAP_PASSWORD", "") or os.environ.get("IMAP_PASSWORD", ""))
         self.notification_email = clean_env_value(os.environ.get("NOTIFICATION_EMAIL", self.smtp_user))
         self.smtp_host = clean_env_value(os.environ.get("SMTP_HOST", "smtp.gmail.com"))
         raw_port = clean_env_value(os.environ.get("SMTP_PORT", "587"))
