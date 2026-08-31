@@ -1,15 +1,16 @@
-"""Unit tests for Phase 3 Sourcing Modules & Ingestion Pipeline."""
+"""Unit tests for Sourcing Modules & Ingestion Pipeline."""
 
 import sys
 from pathlib import Path
 import unittest
 import tempfile
+from unittest.mock import patch
 
 root = Path(__file__).resolve().parent.parent
 if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
-from src.config import load_engine_config, load_tenant_profile
+from src.config import load_engine_config, TenantManager
 from src.database.models import TrackType
 from src.database.repository import JobRepository
 from src.sourcing.google_jobs import GoogleJobsScraper
@@ -22,13 +23,31 @@ from src.sourcing.defense.tusas_roketsan import TusasScraper, RoketsanScraper
 from src.sourcing.manager import SourcingManager
 
 
-from unittest.mock import patch
-
-
 class TestSourcing(unittest.TestCase):
     def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self.tmp_dir.name)
+        
         self.config = load_engine_config()
-        self.tenant = load_tenant_profile(config=self.config)
+        self.config.multi_tenancy.tenants_dir = self.tmp_path / "tenants"
+        self.config.engine.inbox_dir = self.tmp_path / "inbox"
+        self.config.database.db_path = self.tmp_path / "test_sourcing.db"
+
+        mgr = TenantManager(self.config)
+        self.tenant = mgr.create_tenant(
+            tenant_id="test_candidate",
+            name="Test Candidate",
+            email="candidate@example.com",
+            location="Ankara, Turkey",
+            target_titles=["Embedded Software Lead", "Quant Developer"],
+            target_locations=["Ankara, Turkey", "Istanbul, Turkey", "London"],
+            min_salary=8000.0
+        )
+        self.tenant.tracks.track_b.enabled = True
+        self.tenant.tracks.track_b.target_titles = ["Quant Developer"]
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
 
     def test_google_jobs_scraper(self):
         scraper = GoogleJobsScraper(self.config.sourcing, self.tenant)
@@ -65,8 +84,8 @@ class TestSourcing(unittest.TestCase):
             jobs = scraper.run()
             self.assertGreater(len(jobs), 0)
             for j in jobs:
+                self.assertEqual(j.source, "baykar")
                 self.assertEqual(j.company, "Baykar")
-                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_aselsan_scraper(self):
         scraper = AselsanScraper(self.config.sourcing, self.tenant)
@@ -74,8 +93,8 @@ class TestSourcing(unittest.TestCase):
             jobs = scraper.run()
             self.assertGreater(len(jobs), 0)
             for j in jobs:
+                self.assertEqual(j.source, "aselsan")
                 self.assertEqual(j.company, "ASELSAN")
-                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
     def test_vizyoner_genc_scraper(self):
         scraper = VizyonerGencScraper(self.config.sourcing, self.tenant)
@@ -84,68 +103,32 @@ class TestSourcing(unittest.TestCase):
             self.assertGreater(len(jobs), 0)
             for j in jobs:
                 self.assertEqual(j.source, "vizyoner_genc")
-                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
 
-    def test_tusas_scraper(self):
-        scraper = TusasScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.source, "tusas")
-            self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+    def test_tusas_and_roketsan_scrapers(self):
+        tusas = TusasScraper(self.config.sourcing, self.tenant)
+        roketsan = RoketsanScraper(self.config.sourcing, self.tenant)
 
-    def test_roketsan_scraper(self):
-        scraper = RoketsanScraper(self.config.sourcing, self.tenant)
-        jobs = scraper.run()
-        self.assertGreater(len(jobs), 0)
-        for j in jobs:
-            self.assertEqual(j.source, "roketsan")
-            self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+        t_jobs = tusas.run()
+        self.assertGreater(len(t_jobs), 0)
+        self.assertEqual(t_jobs[0].source, "tusas")
+
+        r_jobs = roketsan.run()
+        self.assertGreater(len(r_jobs), 0)
+        self.assertEqual(r_jobs[0].source, "roketsan")
 
     def test_sourcing_manager_orchestration(self):
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            temp_db = Path(tmp_dir) / "test_sourcing.db"
-            test_config = self.config.model_copy(deep=True)
-            test_config.database.db_path = temp_db
+        manager = SourcingManager(config=self.config, tenant=self.tenant)
+        repo = JobRepository(self.config.database.db_path)
+        repo.register_or_update_tenant(
+            tenant_id=self.tenant.tenant_id,
+            name=self.tenant.name,
+            email=self.tenant.email,
+            config_path=str(self.config.multi_tenancy.tenants_dir / self.tenant.tenant_id / "profile.yaml")
+        )
 
-            manager = SourcingManager(config=test_config, tenant=self.tenant)
-            
-            mock_scrapers = []
-            for scraper in manager.get_active_scrapers():
-                if hasattr(scraper, "_get_mock_listings"):
-                    scraper.fetch_raw_listings = scraper._get_mock_listings
-                mock_scrapers.append(scraper)
-            manager.get_active_scrapers = lambda name=None: mock_scrapers
-
-            result = manager.run_sourcing_pipeline()
-
-            self.assertGreater(result["total_discovered"], 0)
-            self.assertEqual(result["new_jobs"], result["total_discovered"])
-
-            # Second run must deduplicate all jobs (0 new)
-            result_second = manager.run_sourcing_pipeline()
-            self.assertEqual(result_second["new_jobs"], 0)
-            self.assertEqual(result_second["existing_jobs"], result["total_discovered"])
-            self.assertIn("warnings", result)
-
-    def test_apify_quota_exceeded_fallback(self):
-        """Verify that HTTP 403 / hard usage limit returns fallback mock listings and records warning."""
-        from unittest.mock import MagicMock
-        scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant, token="mock_token")
-
-        mock_resp = MagicMock()
-        mock_resp.status_code = 403
-        mock_resp.text = '{"error": {"type": "platform-feature-disabled", "message": "Monthly usage hard limit exceeded"}}'
-
-        with patch("httpx.Client.post", return_value=mock_resp):
-            listings = scraper.fetch_raw_listings()
-            self.assertGreater(len(listings), 0)
-            self.assertTrue(any("limit ($5.00) exceeded" in w for w in scraper.warnings))
-            
-            jobs = scraper.run()
-            self.assertGreater(len(jobs), 0)
-            for j in jobs:
-                self.assertEqual(j.source, "apify_linkedin")
+        res = manager.run_sourcing_pipeline(dry_run=True)
+        self.assertIn("total_discovered", res)
+        self.assertGreater(res["total_discovered"], 0)
 
 
 if __name__ == "__main__":

@@ -1054,6 +1054,189 @@ def _build_html_template(
     .toast.show {{
       opacity: 1;
     }}
+    .btn-hire-creator {{
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }}
+    .btn-hire-creator:hover {{
+      background: linear-gradient(135deg, #1d4ed8, #1e40af);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }}
+    .btn-sponsor-creator {{
+      background: linear-gradient(135deg, #d97706, #b45309);
+      color: #ffffff;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }}
+    .btn-sponsor-creator:hover {{
+      background: linear-gradient(135deg, #b45309, #92400e);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }}
+    .btn-gh-repo {{
+      background: var(--bg-surface-subtle);
+      color: var(--text-main);
+      border: 1px solid var(--border-strong);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+    }}
+    .btn-gh-repo:hover {{
+      background: var(--border-subtle);
+    }}
+
+    /* Modal Backdrop & Dialog */
+    .modal-backdrop {{
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }}
+    .modal-backdrop.show {{
+      display: flex;
+    }}
+    .modal-box {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      width: 90%;
+      max-width: 580px;
+      padding: 24px 28px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      animation: modalFadeIn 0.2s ease-out;
+    }}
+    @keyframes modalFadeIn {{
+      from {{ opacity: 0; transform: scale(0.96); }}
+      to {{ opacity: 1; transform: scale(1); }}
+    }}
+    .modal-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-subtle);
+    }}
+    .modal-header h2 {{
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }}
+    .modal-close {{
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }}
+    .modal-close:hover {{
+      background: var(--bg-surface-subtle);
+      color: var(--text-main);
+    }}
+    .modal-body {{
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }}
+    .modal-body p {{
+      margin-bottom: 12px;
+    }}
+    .donation-links {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 16px 0;
+    }}
+    .donation-btn {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }}
+    .btn-gh-sponsor {{
+      background: #ea4aaa;
+      color: #ffffff;
+    }}
+    .btn-gh-sponsor:hover {{
+      background: #d83296;
+    }}
+    .btn-bmc {{
+      background: #ffdd00;
+      color: #000000;
+    }}
+    .btn-bmc:hover {{
+      background: #f0ce00;
+    }}
+    .crypto-box {{
+      background: var(--bg-surface-subtle);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 12px;
+    }}
+    .crypto-row {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 0;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+    }}
+    .btn-copy-addr {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      padding: 2px 6px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+    }}
+
     .empty-state {{
       text-align: center;
       padding: 40px 24px;
@@ -1070,10 +1253,15 @@ def _build_html_template(
     <header class="header-panel">
       <div class="header-top">
         <div class="header-title">
-          <h1>🎯 Career Engine Review Dashboard</h1>
-          <p>Tenant: <strong>{html.escape(tenant.name)}</strong> ({html.escape(tenant.tenant_id)}) &nbsp;|&nbsp; Authoritative Career Hub</p>
+          <h1>⚡ Autonomous Career Engine (ACE)</h1>
+          <p>Candidate: <strong>{html.escape(tenant.name)}</strong> ({html.escape(tenant.tenant_id)}) &nbsp;|&nbsp; Autonomous Sourcing & Application Orchestrator</p>
         </div>
-        <div class="time-badge">Refreshed: {generated_time}</div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <button class="btn-hire-creator" onclick="openHireModal()">💼 Hire the Creator</button>
+          <button class="btn-sponsor-creator" onclick="openSponsorModal()">☕ Sponsor / Donate</button>
+          <a href="https://github.com/aunsal89/ACE" target="_blank" class="btn-gh-repo">⭐ GitHub Repo</a>
+          <div class="time-badge">Refreshed: {generated_time}</div>
+        </div>
       </div>
       <div class="stats-bar">
         <div class="stat-card" onclick="setPrimaryFilter('all')">
@@ -1082,11 +1270,11 @@ def _build_html_template(
         </div>
         <div class="stat-card" onclick="setTrackFilter('TRACK_A')">
           <div class="val" style="color: var(--accent-amber);">{stats["track_a"]}</div>
-          <div class="label">Track A (Embedded)</div>
+          <div class="label">Track A (Primary)</div>
         </div>
         <div class="stat-card" onclick="setTrackFilter('TRACK_B')">
           <div class="val" style="color: var(--accent-purple);">{stats["track_b"]}</div>
-          <div class="label">Track B (Quant)</div>
+          <div class="label">Track B (Secondary)</div>
         </div>
         <div class="stat-card" onclick="setPrimaryFilter('staged')">
           <div class="val" style="color: var(--accent-blue);">{stats["pending"]}</div>
@@ -1693,9 +1881,84 @@ def _build_html_template(
       renderAll();
     }});
 
+    function openSponsorModal() {{
+      document.getElementById("sponsorModal").classList.add("show");
+    }}
+    function closeSponsorModal() {{
+      document.getElementById("sponsorModal").classList.remove("show");
+    }}
+    function openHireModal() {{
+      document.getElementById("hireModal").classList.add("show");
+    }}
+    function closeHireModal() {{
+      document.getElementById("hireModal").classList.remove("show");
+    }}
+
     // Initial render
     renderAll();
   </script>
+
+  <!-- Sponsor / Donate Modal -->
+  <div class="modal-backdrop" id="sponsorModal" onclick="if(event.target===this) closeSponsorModal()">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>☕ Support & Sponsor ACE</h2>
+        <button class="modal-close" onclick="closeSponsorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Autonomous Career Engine (ACE)</strong> is a 100% free and open-source project created by <strong>Ahmet Halit Ünsal</strong> to empower candidates worldwide with autonomous job sourcing and AI application tailoring.</p>
+        <p>If ACE helped you land interviews or saved you hundreds of hours, consider supporting ongoing development:</p>
+        
+        <div class="donation-links">
+          <a href="https://github.com/sponsors/aunsal89" target="_blank" class="donation-btn btn-gh-sponsor">💖 GitHub Sponsors</a>
+          <a href="https://buymeacoffee.com/aunsal" target="_blank" class="donation-btn btn-bmc">☕ Buy Me a Coffee</a>
+        </div>
+
+        <div class="crypto-box">
+          <div style="font-weight: 600; margin-bottom: 6px; color: var(--text-main);">🪙 Direct Crypto Support</div>
+          <div class="crypto-row">
+            <span>USDT (TRC-20):</span>
+            <button class="btn-copy-addr" onclick="copyToClipboard('TMX4i6Q6g7dF8uT1a6z3K9vXyZ1W2M4nL5', 'Copied USDT Address!')">Copy Address 📋</button>
+          </div>
+          <div class="crypto-row">
+            <span>Bitcoin (BTC):</span>
+            <button class="btn-copy-addr" onclick="copyToClipboard('bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh', 'Copied BTC Address!')">Copy Address 📋</button>
+          </div>
+          <div class="crypto-row">
+            <span>Ethereum (ETH):</span>
+            <button class="btn-copy-addr" onclick="copyToClipboard('0x71C83f7fB008A2d3A8679A814343f8B51352eB4A', 'Copied ETH Address!')">Copy Address 📋</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hire the Creator Modal -->
+  <div class="modal-backdrop" id="hireModal" onclick="if(event.target===this) closeHireModal()">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>💼 Hire the Creator & Architect</h2>
+        <button class="modal-close" onclick="closeHireModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p><strong>Ahmet Halit Ünsal</strong> is a Senior Engineering Leader, Embedded Systems Director & Quantitative Systems Architect with 15+ years of professional engineering experience.</p>
+        
+        <div style="background: var(--bg-surface-subtle); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-subtle); margin: 12px 0; font-size: 13px;">
+          <div style="font-weight: 700; color: var(--text-main); margin-bottom: 4px;">🚀 Core Leadership & Technical Mastery:</div>
+          <ul style="padding-left: 18px; margin-top: 4px;">
+            <li><strong>Engineering Leadership:</strong> Managed 30-engineer cross-functional teams, multi-team lead structures, and high-reliability product lifecycles.</li>
+            <li><strong>Embedded Systems:</strong> Model-Based Design (MATLAB/Simulink), ISO 26262 ASIL D, AUTOSAR, EV Powertrains (VCU, MCU, BMS, Inverters), and PMSM motor control.</li>
+            <li><strong>Quantitative Engineering:</strong> Architect of AURA (24/7 automated algorithmic trading engine, walk-forward optimization, and multi-regime risk systems).</li>
+          </ul>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px;">
+          <a href="https://www.linkedin.com/in/ahmet-halit-unsal/" target="_blank" class="donation-btn" style="background: #0a66c2; color: #fff; flex: 1;">Connect on LinkedIn</a>
+          <a href="mailto:ahmethalitunsal@gmail.com" class="donation-btn" style="background: var(--text-main); color: #fff; flex: 1;">✉ Send Direct Email</a>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
 """
