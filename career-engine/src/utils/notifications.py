@@ -3,30 +3,46 @@
 from __future__ import annotations
 
 import os
+import random
+import re
 import smtplib
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 import requests
 
 from src.utils.logger import logger, console
 
+# Ensure .env is always discovered and loaded
+for _candidate_env in [
+    Path("/home/nsl/Portfolio/.env"),
+    Path(__file__).resolve().parent.parent.parent / ".env",
+    Path.cwd() / ".env",
+]:
+    if _candidate_env.exists():
+        load_dotenv(_candidate_env, override=False)
+
 
 class NotificationService:
-    """Dispatches notifications to Telegram and Email (Gmail SMTP)."""
+    """Dispatches notifications to Telegram and Email (Gmail SMTP) with exponential backoff retries."""
 
     def __init__(self) -> None:
         # Telegram Settings
-        self.telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'")
-        self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip().strip('"').strip("'")
+        raw_tok = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip().strip('"').strip("'").strip()
+        if raw_tok.lower().startswith("bot"):
+            raw_tok = raw_tok[3:]
+        self.telegram_token = raw_tok
+        self.telegram_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip().strip('"').strip("'").strip()
 
         # SMTP (Gmail) Settings
-        self.smtp_user = os.environ.get("SMTP_USER", "").strip().strip('"').strip("'")
-        self.smtp_password = os.environ.get("SMTP_PASSWORD", "").strip().strip('"').strip("'")
-        self.notification_email = os.environ.get("NOTIFICATION_EMAIL", self.smtp_user).strip().strip('"').strip("'")
-        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip().strip('"').strip("'")
-        raw_port = os.environ.get("SMTP_PORT", "587").strip().strip('"').strip("'")
+        self.smtp_user = os.environ.get("SMTP_USER", "").strip().strip('"').strip("'").strip()
+        self.smtp_password = os.environ.get("SMTP_PASSWORD", "").strip().strip('"').strip("'").strip()
+        self.notification_email = os.environ.get("NOTIFICATION_EMAIL", self.smtp_user).strip().strip('"').strip("'").strip()
+        self.smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com").strip().strip('"').strip("'").strip()
+        raw_port = os.environ.get("SMTP_PORT", "587").strip().strip('"').strip("'").strip()
         self.smtp_port = int(raw_port) if raw_port.isdigit() else 587
 
     @property
@@ -37,34 +53,97 @@ class NotificationService:
     def email_enabled(self) -> bool:
         return bool(self.smtp_user and self.smtp_password and self.notification_email)
 
-    def send_telegram(self, text: str, parse_mode: str = "HTML") -> bool:
-        """Send a message via Telegram Bot API."""
+    def send_telegram(
+        self,
+        text: str,
+        parse_mode: Optional[str] = "HTML",
+        max_retries: int = 5,
+        base_delay: float = 2.0,
+        max_delay: float = 20.0,
+        backoff_factor: float = 2.0,
+    ) -> bool:
+        """
+        Send a message via Telegram Bot API with exponential backoff, randomized jitter,
+        and fallback to plain text if HTML parsing fails.
+        """
         if not self.telegram_enabled:
             logger.debug("Telegram notifications not configured (TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing).")
             return False
 
         url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        payload = {
-            "chat_id": self.telegram_chat_id,
-            "text": text,
-            "parse_mode": parse_mode,
-            "disable_web_page_preview": False
-        }
+        current_parse_mode = parse_mode
+        current_text = text
 
-        try:
-            resp = requests.post(url, json=payload, timeout=15)
-            if resp.status_code == 200:
-                logger.info("Telegram notification delivered successfully.")
-                return True
-            else:
-                logger.error(f"Telegram notification failed (Status {resp.status_code}): {resp.text}")
-                return False
-        except Exception as e:
-            logger.error(f"Telegram notification error: {e}")
-            return False
+        for attempt in range(1, max_retries + 1):
+            payload: Dict[str, Any] = {
+                "chat_id": self.telegram_chat_id,
+                "text": current_text,
+                "disable_web_page_preview": False,
+            }
+            if current_parse_mode:
+                payload["parse_mode"] = current_parse_mode
 
-    def send_email(self, subject: str, body_text: str, body_html: Optional[str] = None) -> bool:
-        """Send an email notification via Gmail SMTP."""
+            try:
+                resp = requests.post(url, json=payload, timeout=20)
+
+                if resp.status_code == 200:
+                    logger.info(f"Telegram notification delivered successfully (attempt {attempt}).")
+                    return True
+
+                # If HTML parsing failed (400 Bad Request), fallback immediately to plain text
+                if resp.status_code == 400 and current_parse_mode:
+                    logger.warning(
+                        "Telegram returned 400 Bad Request (likely malformed HTML entity). "
+                        "Stripping HTML tags and retrying as plain text..."
+                    )
+                    current_parse_mode = None
+                    current_text = re.sub(r"<[^>]+>", "", text)
+                    continue
+
+                # Parse response for rate limit retry_after
+                retry_after_delay = None
+                try:
+                    resp_json = resp.json()
+                    if "parameters" in resp_json and "retry_after" in resp_json["parameters"]:
+                        retry_after_delay = float(resp_json["parameters"]["retry_after"])
+                except Exception:
+                    pass
+
+                # Transient errors to retry: 404 (edge routing), 429 (rate limit), 500, 502, 503, 504
+                if resp.status_code in [404, 429, 500, 502, 503, 504]:
+                    logger.warning(
+                        f"Telegram API returned HTTP {resp.status_code} ({resp.text.strip()[:150]}) "
+                        f"(attempt {attempt}/{max_retries})."
+                    )
+                else:
+                    logger.error(f"Telegram notification permanent failure (Status {resp.status_code}): {resp.text}")
+                    return False
+
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                logger.warning(f"Telegram notification network error ({type(e).__name__}: {e}) (attempt {attempt}/{max_retries}).")
+
+            if attempt < max_retries:
+                if retry_after_delay is not None:
+                    delay = retry_after_delay + 0.5
+                else:
+                    delay = min(max_delay, base_delay * (backoff_factor ** (attempt - 1)))
+                jitter = random.uniform(0.85, 1.15)
+                total_sleep = round(delay * jitter, 2)
+                logger.info(f"Retrying Telegram delivery in {total_sleep}s (attempt {attempt + 1}/{max_retries})...")
+                time.sleep(total_sleep)
+
+        logger.error(f"Failed to deliver Telegram notification after {max_retries} attempts.")
+        return False
+
+    def send_email(
+        self,
+        subject: str,
+        body_text: str,
+        body_html: Optional[str] = None,
+        max_retries: int = 3,
+        base_delay: float = 2.0,
+    ) -> bool:
+        """Send an email notification via Gmail SMTP with retry backoff."""
         if not self.email_enabled:
             logger.debug("Email notifications not configured (SMTP_USER or SMTP_PASSWORD missing).")
             return False
@@ -79,18 +158,23 @@ class NotificationService:
         if body_html:
             msg.attach(MIMEText(body_html, "html", "utf-8"))
 
-        try:
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20) as server:
-                server.ehlo()
-                server.starttls()
-                server.ehlo()
-                server.login(self.smtp_user, self.smtp_password)
-                server.sendmail(self.smtp_user, [self.notification_email], msg.as_string())
-            logger.info(f"Email notification delivered to {self.notification_email}.")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to send email notification via SMTP: {e}")
-            return False
+        for attempt in range(1, max_retries + 1):
+            try:
+                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=25) as server:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.sendmail(self.smtp_user, [self.notification_email], msg.as_string())
+                logger.info(f"Email notification delivered to {self.notification_email} (attempt {attempt}).")
+                return True
+            except Exception as e:
+                logger.warning(f"SMTP delivery attempt {attempt}/{max_retries} failed: {e}")
+                if attempt < max_retries:
+                    time.sleep(base_delay * attempt)
+
+        logger.error(f"Failed to send email notification via SMTP after {max_retries} attempts.")
+        return False
 
     def notify_pipeline_run(
         self,
