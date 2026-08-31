@@ -158,7 +158,7 @@ ACE automatically compiles an interactive HTML dashboard:
 - 🌐 **Portfolio & Case Studies:** [ahmethalitunsal.com](https://www.ahmethalitunsal.com)  
 - 🔗 **LinkedIn:** [linkedin.com/in/ahmet-halit-unsal](https://www.linkedin.com/in/ahmet-halit-unsal/)  
 - 🐙 **GitHub:** [github.com/aunsal89](https://github.com/aunsal89)  
-- ✉️ **Email:** [ahmethalitunsal@gmail.com](mailto:ahmethalitunsal@gmail.com)  
+- ✉️ **Email:** [aunsal89@gmail.com](mailto:aunsal89@gmail.com)  
 
 ### 💼 Hire the Creator
 Ahmet brings 15+ years of professional engineering experience and 8+ years managing 30-engineer cross-functional teams across:
@@ -186,7 +186,7 @@ Autonomous Career Engine (ACE) is licensed under the **GNU Affero General Public
 See [LICENSE](LICENSE) for full details.
 
 ```text
-Copyright (C) 2026 Ahmet Halit Ünsal <ahmethalitunsal@gmail.com>
+Copyright (C) 2026 Ahmet Halit Ünsal <aunsal89@gmail.com>
 ```
 
 Under AGPL-3.0, you are free to use, inspect, and modify this software. If you run a modified version on a server or provide network access to it, you MUST make the corresponding source code publicly available under the same license with all author notices preserved. Commercial repackaging without open-source contribution is strictly prohibited.

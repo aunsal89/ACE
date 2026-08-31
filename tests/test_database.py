@@ -28,11 +28,11 @@ class TestDatabase(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "test_career_engine.db"
         self.repo = JobRepository(self.db_path)
-        self.repo.register_or_update_tenant(
+        tenant = self.repo.register_or_update_tenant(
             tenant_id="aunsal",
             name="Ahmet Halit Ünsal",
-            email="ahmethalitunsal@gmail.com",
-            config_path="/test/path/profile.yaml"
+            email="aunsal89@gmail.com",
+            config_path="config/tenants/aunsal/profile.yaml"
         )
 
     def tearDown(self):

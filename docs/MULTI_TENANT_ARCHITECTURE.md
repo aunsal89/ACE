@@ -99,7 +99,7 @@ Each tenant profile is validated against Pydantic V2 schemas (`TenantProfile` in
 ```yaml
 tenant_id: "aunsal"
 name: "Ahmet Halit Ünsal"
-email: "ahmethalitunsal@gmail.com"
+email: "aunsal89@gmail.com"
 phone: "+90-5XX-XXX-XXXX"
 location_current: "Ankara, Turkey"
 
