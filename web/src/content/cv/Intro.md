@@ -1,3 +1,0 @@
-# Profile
-
-Engineering leader with 15+ years spanning safety-critical embedded systems, large-scale team management, and full-cycle product development. Directed a 30-engineer organization delivering ISO 26262-compliant software for EV powertrains at production scale, while concurrently architecting and operating two independent ventures from zero to production — a clinical-grade mobile application and a 24/7 live-capital algorithmic trading system. Equally fluent in organizational design, control algorithm development, React Native product engineering, and quantitative portfolio management. Known for owning outcomes end-to-end: root-causing production failures, shipping structural fixes, and building systems that harden against recurrence.
