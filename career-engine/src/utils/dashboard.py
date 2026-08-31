@@ -2,7 +2,7 @@
 HTML Review Dashboard Generator for Career Engine staged jobs in /inbox/.
 Produces a self-contained, responsive, zero-external-dependency HTML dashboard at inbox/index.html
 with executive-grade light theme, dynamic taxonomy aggregation, dual-dimension filtering (Track & Status),
-sticky top navigation, interactive charts, multi-term search, and sorting.
+interactive charts, multi-term search, sorting, and force-stage action triggers for evaluated/queued listings.
 """
 
 from __future__ import annotations
@@ -226,7 +226,8 @@ def generate_inbox_dashboard(
     pending_track_b = sum(1 for j in job_cards_data if j.get("folder_rel_path") and j["track"] == "TRACK_B")
     approved_count = sum(1 for j in job_cards_data if j["status"] == "APPLIED")
     rejected_count = sum(1 for j in job_cards_data if j["status"] == "REJECTED")
-    queued_eval_count = sum(1 for j in job_cards_data if j["status"] in ("QUEUED", "EVALUATED") and not j.get("folder_rel_path"))
+    queued_count = sum(1 for j in job_cards_data if j["status"] == "QUEUED" and not j.get("folder_rel_path"))
+    evaluated_count = sum(1 for j in job_cards_data if j["status"] == "EVALUATED" and not j.get("folder_rel_path"))
 
     html_content = _build_html_template(
         tenant=tenant,
@@ -240,7 +241,8 @@ def generate_inbox_dashboard(
             "pending_track_b": pending_track_b,
             "approved": approved_count,
             "rejected": rejected_count,
-            "queued_eval": queued_eval_count,
+            "queued": queued_count,
+            "evaluated": evaluated_count,
         },
         generated_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
@@ -310,8 +312,8 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      padding: 22px 26px;
-      margin-bottom: 18px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
       box-shadow: var(--shadow-sm);
     }}
     .header-top {{
@@ -320,10 +322,10 @@ def _build_html_template(
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }}
     .header-title h1 {{
-      font-size: 22px;
+      font-size: 21px;
       font-weight: 700;
       color: var(--text-main);
       display: flex;
@@ -334,7 +336,7 @@ def _build_html_template(
     .header-title p {{
       color: var(--text-muted);
       font-size: 13px;
-      margin-top: 4px;
+      margin-top: 3px;
     }}
     .time-badge {{
       font-size: 12px;
@@ -347,14 +349,14 @@ def _build_html_template(
     }}
     .stats-bar {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
       gap: 10px;
     }}
     .stat-card {{
       background: var(--bg-page);
       border: 1px solid var(--border-subtle);
       border-radius: 8px;
-      padding: 10px 14px;
+      padding: 10px 12px;
       text-align: left;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -365,13 +367,13 @@ def _build_html_template(
       transform: translateY(-1px);
     }}
     .stat-card .val {{
-      font-size: 20px;
+      font-size: 19px;
       font-weight: 700;
       color: var(--text-main);
       line-height: 1.2;
     }}
     .stat-card .label {{
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       color: var(--text-dim);
       text-transform: uppercase;
@@ -384,7 +386,7 @@ def _build_html_template(
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
       box-shadow: var(--shadow-sm);
       overflow: hidden;
       transition: all 0.2s ease;
@@ -428,8 +430,8 @@ def _build_html_template(
     .analytics-content {{
       padding: 16px 18px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
     }}
     .chart-box {{
       background: var(--bg-page);
@@ -529,8 +531,8 @@ def _build_html_template(
       padding: 4px 0;
     }}
     .donut-svg {{
-      width: 95px;
-      height: 95px;
+      width: 90px;
+      height: 90px;
       transform: rotate(-90deg);
     }}
     .donut-legend {{
@@ -569,7 +571,7 @@ def _build_html_template(
       border: 1px solid var(--border-subtle);
       border-radius: 12px;
       padding: 12px 16px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
       box-shadow: var(--shadow-md);
       display: flex;
       flex-direction: column;
@@ -656,7 +658,7 @@ def _build_html_template(
     .nav-filters-group {{
       display: flex;
       flex-wrap: wrap;
-      gap: 14px;
+      gap: 12px;
       align-items: center;
     }}
     .filter-pills-label {{
@@ -759,7 +761,7 @@ def _build_html_template(
       padding: 6px 12px;
       display: none;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       font-size: 12px;
     }}
     .staged-subnav-label {{
@@ -841,6 +843,11 @@ def _build_html_template(
       background: var(--accent-blue-light);
       color: var(--accent-blue);
       border: 1px solid rgba(37, 99, 235, 0.3);
+    }}
+    .badge-evaluated {{
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
     }}
     .badge-applied {{
       background: var(--accent-emerald-light);
@@ -962,6 +969,16 @@ def _build_html_template(
       background: #dbeafe;
       border-color: var(--accent-blue);
     }}
+    .btn-stage {{
+      background: #fef3c7;
+      border-color: #fde68a;
+      color: #92400e;
+      font-weight: 700;
+    }}
+    .btn-stage:hover {{
+      background: #fde68a;
+      border-color: #d97706;
+    }}
     .btn-approve {{
       background: var(--accent-emerald-light);
       border-color: rgba(5, 150, 105, 0.35);
@@ -1075,6 +1092,14 @@ def _build_html_template(
           <div class="val" style="color: var(--accent-blue);">{stats["pending"]}</div>
           <div class="label">Staged Packages</div>
         </div>
+        <div class="stat-card" onclick="setPrimaryFilter('queued')">
+          <div class="val" style="color: var(--accent-blue);">{stats["queued"]}</div>
+          <div class="label">Queued (Ready)</div>
+        </div>
+        <div class="stat-card" onclick="setPrimaryFilter('evaluated')">
+          <div class="val" style="color: var(--accent-amber);">{stats["evaluated"]}</div>
+          <div class="label">Evaluated (Review)</div>
+        </div>
         <div class="stat-card" onclick="setPrimaryFilter('applied')">
           <div class="val" style="color: var(--accent-emerald);">{stats["approved"]}</div>
           <div class="label">Applied</div>
@@ -1082,10 +1107,6 @@ def _build_html_template(
         <div class="stat-card" onclick="setPrimaryFilter('rejected')">
           <div class="val" style="color: var(--accent-rose);">{stats["rejected"]}</div>
           <div class="label">Rejected</div>
-        </div>
-        <div class="stat-card" onclick="setPrimaryFilter('queued_evaluated')">
-          <div class="val" style="color: var(--text-dim);">{stats["queued_eval"]}</div>
-          <div class="label">Queued / Evaluated</div>
         </div>
       </div>
     </header>
@@ -1138,7 +1159,7 @@ def _build_html_template(
     <div class="sticky-controls">
       <div class="controls-row-1">
         <div class="search-wrapper">
-          <input type="text" id="searchInput" placeholder='Search by title, company, location (e.g. "Singapore + Quant", "London, Embedded", ID...)' autocomplete="off" />
+          <input type="text" id="searchInput" placeholder='Search by title, company, location, recommendation (e.g. "Singapore + Quant", "MANUAL_REVIEW", ID...)' autocomplete="off" />
           <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()" title="Clear Search">✕</button>
         </div>
         <div class="sort-control">
@@ -1161,9 +1182,10 @@ def _build_html_template(
             <span class="filter-pills-label">Status:</span>
             <button class="pill active" data-filter="all" onclick="setPrimaryFilter('all')">All ({stats["total"]})</button>
             <button class="pill" data-filter="staged" onclick="setPrimaryFilter('staged')">📦 Staged Packages ({stats["pending"]})</button>
+            <button class="pill" data-filter="queued" onclick="setPrimaryFilter('queued')">⏳ Queued ({stats["queued"]})</button>
+            <button class="pill" data-filter="evaluated" onclick="setPrimaryFilter('evaluated')">🔬 Evaluated ({stats["evaluated"]})</button>
             <button class="pill" data-filter="applied" onclick="setPrimaryFilter('applied')">🚀 Applied ({stats["approved"]})</button>
             <button class="pill" data-filter="rejected" onclick="setPrimaryFilter('rejected')">❌ Rejected ({stats["rejected"]})</button>
-            <button class="pill" data-filter="queued_evaluated" onclick="setPrimaryFilter('queued_evaluated')">⏳ Queued / Evaluated ({stats["queued_eval"]})</button>
           </div>
 
           <!-- Secondary Track Filter Tabs -->
@@ -1196,10 +1218,11 @@ def _build_html_template(
 
   <script>
     const JOBS = {jobs_json};
-    let currentFilter = "all";         // 'all', 'staged', 'applied', 'rejected', 'queued_evaluated'
+    let currentFilter = "all";         // 'all', 'staged', 'queued', 'evaluated', 'applied', 'rejected'
     let currentTrack = "all";          // 'all', 'TRACK_A', 'TRACK_B'
     let selectedRegion = null;
     let selectedPosition = null;
+    let selectedRecommendation = null;
     let searchQuery = "";
     let currentSort = "date_desc";
     let isAnalyticsVisible = true;
@@ -1267,6 +1290,11 @@ def _build_html_template(
       renderAll();
     }}
 
+    function setRecommendationFilter(rec) {{
+      selectedRecommendation = (selectedRecommendation === rec) ? null : rec;
+      renderAll();
+    }}
+
     function clearSearch() {{
       document.getElementById("searchInput").value = "";
       searchQuery = "";
@@ -1279,6 +1307,7 @@ def _build_html_template(
       currentTrack = "all";
       selectedRegion = null;
       selectedPosition = null;
+      selectedRecommendation = null;
       searchQuery = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("searchClearBtn").style.display = "none";
@@ -1315,6 +1344,7 @@ def _build_html_template(
         job.position_group,
         job.track === 'TRACK_A' ? 'track a embedded leadership hardware automotive defense' : 'track b quant quantitative developer trading algo aura',
         job.status,
+        job.recommendation,
         job.source,
         job.short_id,
         job.id,
@@ -1337,9 +1367,10 @@ def _build_html_template(
       return jobList.filter(j => {{
         // Status filter tab
         if (currentFilter === "staged" && !j.folder_rel_path) return false;
+        if (currentFilter === "queued" && (j.status !== "QUEUED" || j.folder_rel_path)) return false;
+        if (currentFilter === "evaluated" && (j.status !== "EVALUATED" || j.folder_rel_path)) return false;
         if (currentFilter === "applied" && j.status !== "APPLIED") return false;
         if (currentFilter === "rejected" && j.status !== "REJECTED") return false;
-        if (currentFilter === "queued_evaluated" && (j.status !== "QUEUED" && j.status !== "EVALUATED" || j.folder_rel_path)) return false;
 
         // Track filter
         if (currentTrack === "TRACK_A" && j.track !== "TRACK_A") return false;
@@ -1350,6 +1381,9 @@ def _build_html_template(
 
         // Position filter
         if (selectedPosition && j.position_group !== selectedPosition) return false;
+
+        // Recommendation filter
+        if (selectedRecommendation && j.recommendation !== selectedRecommendation) return false;
 
         // Search query
         if (searchQuery && !matchesSearch(j, searchQuery)) return false;
@@ -1461,15 +1495,17 @@ def _build_html_template(
       // 4. Status Breakdown
       const statusCounts = {{
         "Staged Packages": JOBS.filter(j => j.folder_rel_path).length,
+        "Queued (Ready)": JOBS.filter(j => j.status === "QUEUED" && !j.folder_rel_path).length,
+        "Evaluated (Manual Review)": JOBS.filter(j => j.status === "EVALUATED" && !j.folder_rel_path).length,
         "Applied": JOBS.filter(j => j.status === "APPLIED").length,
         "Rejected": JOBS.filter(j => j.status === "REJECTED").length,
-        "Queued / Evaluated": JOBS.filter(j => (j.status === "QUEUED" || j.status === "EVALUATED") && !j.folder_rel_path).length,
       }};
       const statusFilters = {{
         "Staged Packages": "staged",
+        "Queued (Ready)": "queued",
+        "Evaluated (Manual Review)": "evaluated",
         "Applied": "applied",
         "Rejected": "rejected",
-        "Queued / Evaluated": "queued_evaluated",
       }};
 
       const statusHtml = Object.entries(statusCounts).map(([st, cnt]) => {{
@@ -1502,6 +1538,9 @@ def _build_html_template(
       }}
       if (selectedPosition) {{
         tags.push(`<span class="active-filter-tag">💼 Role: ${{selectedPosition}} <span class="tag-remove" onclick="setPositionFilter('${{selectedPosition.replace(/'/g, "\\\'")}}')">✕</span></span>`);
+      }}
+      if (selectedRecommendation) {{
+        tags.push(`<span class="active-filter-tag">⭐ Recommendation: ${{selectedRecommendation}} <span class="tag-remove" onclick="setRecommendationFilter('${{selectedRecommendation}}')">✕</span></span>`);
       }}
       if (searchQuery) {{
         tags.push(`<span class="active-filter-tag">🔍 Search: "${{searchQuery}}" <span class="tag-remove" onclick="clearSearch()">✕</span></span>`);
@@ -1546,7 +1585,8 @@ def _build_html_template(
         const trackLabel = isTrackA ? "Track A (Embedded)" : "Track B (Quant)";
 
         let statusBadgeClass = "badge-discovered";
-        if (j.status === "QUEUED" || j.status === "EVALUATED") statusBadgeClass = "badge-queued";
+        if (j.status === "QUEUED") statusBadgeClass = "badge-queued";
+        else if (j.status === "EVALUATED") statusBadgeClass = "badge-evaluated";
         else if (j.status === "APPLIED") statusBadgeClass = "badge-applied";
         else if (j.status === "REJECTED") statusBadgeClass = "badge-rejected";
 
@@ -1584,6 +1624,11 @@ def _build_html_template(
           actionLinks.push(`<a class="btn" href="${{j.details_md_rel}}" target="_blank">📋 Job Details MD</a>`);
         }}
 
+        // If not staged, provide Force Stage Command button
+        if (!j.folder_rel_path) {{
+          actionLinks.push(`<button class="btn btn-stage" onclick="copyToClipboard('python run.py stage ${{j.short_id}}', 'Copied: python run.py stage ${{j.short_id}}')">⚡ Copy Stage Cmd</button>`);
+        }}
+
         // Approve Command Button
         actionLinks.push(`<button class="btn btn-approve" onclick="copyToClipboard('python run.py approve ${{j.short_id}}', 'Copied: python run.py approve ${{j.short_id}}')">✓ Copy Approve Cmd</button>`);
 
@@ -1613,7 +1658,7 @@ def _build_html_template(
 
             ${{j.reasoning ? `
               <div class="ai-rationale-box">
-                <strong>AI Evaluation Rationale:</strong> ${{j.reasoning}}
+                <strong>AI Evaluation Rationale (${{j.recommendation}}):</strong> ${{j.reasoning}}
               </div>
             ` : ''}}
 

@@ -214,6 +214,36 @@ def cmd_reject(args: argparse.Namespace) -> None:
         console.print(f"[bold red]Could not find job with ID {args.job_id}[/bold red]")
 
 
+def cmd_stage(args: argparse.Namespace) -> None:
+    """Force stage an application package for a specific job ID into /inbox/."""
+    config = load_engine_config()
+    tenant = load_tenant_profile(config=config)
+    repo = JobRepository(config.database.db_path)
+
+    job = repo.get_job_by_id(args.job_id)
+    if not job:
+        console.print(f"[bold red]Could not find job with ID {args.job_id}[/bold red]")
+        return
+
+    # Update job status to QUEUED if it was EVALUATED or DISCOVERED
+    if job.status != JobStatus.QUEUED:
+        repo.update_job_status(
+            job_id=job.id,
+            new_status=JobStatus.QUEUED,
+            tenant_id=tenant.tenant_id,
+            changed_by="user",
+            notes="Force-queued for application package drafting by user"
+        )
+
+    drafter = ApplicationGenerator(config=config, tenant=tenant)
+    pkgs = drafter.draft_queued_jobs(job_id=job.id)
+    if pkgs:
+        console.print(f"[bold green]✓ Successfully force-staged application package for {job.company} - {job.title} into /inbox/![/bold green]")
+    else:
+        console.print(f"[yellow]Package drafting completed.[/yellow]")
+
+
+
 def cmd_dashboard(args: argparse.Namespace) -> None:
     """Generate or refresh the HTML review dashboard in /inbox/."""
     config = load_engine_config()
@@ -455,6 +485,11 @@ def main() -> None:
     p_rej = subparsers.add_parser("reject", help="Reject a job listing")
     p_rej.add_argument("job_id", type=str, help="Job ID to reject")
     p_rej.set_defaults(func=cmd_reject)
+
+    # stage / force-stage
+    p_stage = subparsers.add_parser("stage", help="Force stage application package for a specific job ID into /inbox/")
+    p_stage.add_argument("job_id", type=str, help="Job ID or prefix to force stage")
+    p_stage.set_defaults(func=cmd_stage)
 
     # test-dedup
     p_dedup = subparsers.add_parser("test-dedup", help="Test deduplication hashing algorithm")
