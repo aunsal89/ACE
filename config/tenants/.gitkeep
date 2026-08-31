@@ -1,0 +1,2 @@
+# Local tenant profiles are stored here (e.g., config/tenants/<tenant_id>/profile.yaml)
+# Created dynamically via `python run.py setup` or `python run.py tenant create`

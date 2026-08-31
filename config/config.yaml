@@ -1,12 +1,12 @@
 engine:
-  name: Career Engine
-  version: 0.2.0
+  name: Autonomous Career Engine
+  version: 0.3.0
   environment: production
-  data_dir: /home/nsl/Portfolio/career-engine/data
-  inbox_dir: /home/nsl/Portfolio/career-engine/inbox
+  data_dir: data
+  inbox_dir: inbox
   log_level: INFO
 database:
-  db_path: /home/nsl/Portfolio/career-engine/data/career_engine.db
+  db_path: data/career_engine.db
   wal_mode: true
   timeout_seconds: 30.0
   foreign_keys: true
@@ -23,22 +23,17 @@ llm:
     openrouter:
       models:
       - openrouter/free
-      - nvidia/nemotron-3-super-120b-a12b:free
       - meta-llama/llama-3.3-70b-instruct:free
       - google/gemma-4-31b-it:free
-      - google/gemma-4-26b-a4b-it:free
-      - z-ai/glm-5.2:free
       - minimax/minimax-m2.7:free
-      - minimax/minimax-m3:free
-      - thinkingmachines/inkling:free
       temperature: 0.2
       max_output_tokens: 4096
 sourcing:
   request_timeout: 35
   max_retries: 3
   rate_limit_per_minute: 30
-  user_agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)
-    Chrome/131.0.0.0 Safari/537.36 CareerEngine/0.2.0
+  user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
+    like Gecko) Chrome/131.0.0.0 Safari/537.36 AutonomousCareerEngine/0.3.0
   scrapers:
     google_jobs:
       enabled: true
@@ -46,7 +41,7 @@ sourcing:
     gmail_linkedin:
       enabled: true
       priority: 1
-      since_date: "27-Aug-2026"
+      since_date: 27-Aug-2026
     apify_linkedin:
       enabled: true
       priority: 1
@@ -66,5 +61,5 @@ sourcing:
       enabled: true
       priority: 3
 multi_tenancy:
-  active_tenant: aunsal
-  tenants_dir: /home/nsl/Portfolio/career-engine/config/tenants
+  active_tenant: demo_candidate
+  tenants_dir: config/tenants
