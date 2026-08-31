@@ -47,7 +47,7 @@ Designed with strict separation of concerns to allow future packaging as a manag
   * Generative AI SDKs: `google-genai`, `anthropic`, `openai`
 * **Static Site Toolchain:** Astro 6 (`^6.3.1`), React 19 (`^19.2.6`), Tailwind CSS v4 (`^4.3.0`), TypeScript (Strict).
 * **Brevity & Token Efficiency Directives:** Feedback, status reports, and explanations must remain ultra-concise, high-signal, and minimal in token usage unless the user explicitly requests exhaustive or deep-dive details on a specific subject.
-* **Python Validation:** All generated or modified Python code must be checked for AST validity and, if applicable, smoke tested prior to any further development steps.
+* **Mandatory Smoke Testing & Behavioral Verification:** Every new feature, module addition, or bug fix MUST be subjected to an end-to-end smoke test (e.g. live CLI simulation, component verification, or API diagnostic test) in addition to AST validation and unit tests, catching behavioral mismatches, permission faults, and runtime regressions prior to completion.
 * **Atomic Commits & Lifecycle Tracking:** All project milestones, feature completions, refactors, and phase transitions must be committed atomically with clear, high-signal commit messages providing distinct anchor points throughout the project lifecycle.
 
 ---
@@ -159,6 +159,8 @@ portfolio/
 10. **Automated Git Sync & Inbox Hierarchy:** Application packages are staged hierarchically into `inbox/<track_folder>/<date_folder>/<company>_<role>_<id>/` accompanied by `Job_Details.md` and a self-contained HTML review dashboard at `inbox/index.html` with strictly relative paths.
 11. **PDF Rendering & Entity Normalization:** `render_markdown_to_pdf` automatically normalizes typography, decodes HTML entities (`&nbsp;` -> `" "`), converts markdown horizontal rules to vector dividers, and strips inline markdown formatting.
 12. **Comprehensive Resume & Cover Letter Synthesis:** Resumes automatically append the candidate's Education section (`Education.md`), and Cover Letters feature extensive leadership and quantitative depth with explicit Job URLs.
+13. **Resilient Notification Dispatcher & Retries:** Telegram notifications execute with up to 5 exponential backoff retries with randomized jitter, rate-limit `retry_after` awareness, plain-text auto-fallback on HTML parse errors (HTTP 400 Bad Request), and surrounding quote/whitespace sanitization. Gmail SMTP operates with 3-attempt socket retry.
+14. **Mandatory Pre-Commit Smoke Testing:** All bug fixes and feature implementations must be smoke tested end-to-end in the actual execution environment (`vsmlnx` with `lnxenv`) to proactively detect permission issues, environment variable formatting anomalies, and behavioral mismatches prior to deployment.
 
 ---
 
