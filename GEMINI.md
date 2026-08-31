@@ -161,6 +161,13 @@ portfolio/
 12. **Comprehensive Resume & Cover Letter Synthesis:** Resumes automatically append the candidate's Education section (`Education.md`), and Cover Letters feature extensive leadership and quantitative depth with explicit Job URLs.
 13. **Resilient Notification Dispatcher & Retries:** Telegram notifications execute with up to 5 exponential backoff retries with randomized jitter, rate-limit `retry_after` awareness, plain-text auto-fallback on HTML parse errors (HTTP 400 Bad Request), and surrounding quote/whitespace sanitization. Gmail SMTP operates with 3-attempt socket retry.
 14. **Mandatory Pre-Commit Smoke Testing:** All bug fixes and feature implementations must be smoke tested end-to-end in the actual execution environment (`vsmlnx` with `lnxenv`) to proactively detect permission issues, environment variable formatting anomalies, and behavioral mismatches prior to deployment.
+15. **Executive Review Dashboard & Dynamic Visual Analytics (`inbox/index.html`):**
+    - **Visual Theme & Usability:** Clean executive light palette (`#f8fafc` page, `#ffffff` cards, `#e2e8f0` borders) engineered for high information density with minimal cognitive clutter.
+    - **Persistent Sticky Controls:** Top control panel (`position: sticky; top: 0; z-index: 900; backdrop-filter: blur(10px)`) remains pinned as the user scrolls, housing search, sort, and status/track filters.
+    - **Dual-Dimension Filtering:** Orthogonal Status tabs (`All`, `📦 Staged Packages`, `⏳ Queued`, `🔬 Evaluated`, `🚀 Applied`, `❌ Rejected`) and Track selector (`All Tracks`, `Track A (Embedded)`, `Track B (Quant)`), with dedicated inline sub-filters for Staged Packages.
+    - **Dynamic Taxonomy & Runtime Aggregation:** Real-time extraction of distinct geographical hubs (Singapore, UK London/Regional, Turkey Ankara/Istanbul, Germany, Netherlands, China/APAC, Remote) and position clusters (Quant Dev, Quant Research, Embedded Systems, Power Electronics, Avionics, Executive Leadership) rendered as interactive SVG Donut and Bar charts with instant click-to-filter mechanics.
+    - **Multi-Term Boolean Search:** Full support for `+` (AND) and `,` (OR) operators (e.g. `Singapore + Quant`, `MANUAL_REVIEW + London`) indexing title, company, location, track, status, recommendation, description, and AI rationales.
+    - **Force-Stage Workflow (`python run.py stage <job_id>`):** Direct CLI command and 1-click dashboard action (`⚡ Copy Stage Cmd`) enabling users to force-queue and synthesize application dossiers for `EVALUATED` (Manual Review) or newly discovered listings.
 
 ---
 
@@ -192,10 +199,11 @@ portfolio/
   * Systemd timer (`deploy/systemd/career-sourcing.timer`) configured for weekly trigger (every Monday at 08:00 AM) with catch-up resilience (`Persistent=true`) and jitter protection (`RandomizedDelaySec=300`).
   * Telegram Bot and Gmail SMTP notification dispatcher (`notifications.py`) with warning banner formatting.
   * Automated Git synchronization (`git_sync.py`) auto-committing and pushing staged outputs and `inbox/index.html` dashboard to `origin/main`.
-  * Systematic review dashboard refresh integrated into every `career-sourcing.service` run for instant local review via `git pull`.
+  * Executive review dashboard with interactive visual analytics, dynamic taxonomy clustering, sticky navigation, dual-dimension filtering, and force-staging workflow (`python run.py stage <id>`).
   * Comprehensive test suite verified (35/35 tests passing across configuration, database, hashing, router, scoring, PDF rendering, and sourcing).
   * Authoritative multi-tenant SaaS architecture blueprint documented at `career-engine/docs/MULTI_TENANT_ARCHITECTURE.md`.
   * (Note: AURA crypto/equity yield integration postponed for standalone algorithm development).
+
 
 
 
