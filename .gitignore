@@ -15,22 +15,17 @@ htmlcov/
 dist/
 build/
 
-# Local databases & model caches
-data/*.db
-data/*.sqlite
-data/*.sqlite3
-data/openrouter_free_models.json
-data/fonts/
+# Local databases & model caches (regenerated dynamically on demand)
+data/*
 !data/.gitkeep
 
 # Local user tenants & private CV sources
 config/tenants/*
 !config/tenants/.gitkeep
 
-# Generated application packages and review dashboard
+# Generated application packages and review dashboard (regenerated dynamically on demand)
 inbox/*
 !inbox/.gitkeep
-!inbox/index.html
 
 # Operating System & IDEs
 .DS_Store
