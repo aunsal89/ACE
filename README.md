@@ -180,6 +180,12 @@ If ACE has accelerated your career, saved you hours of application prep, or help
 
 ---
 
+## 🤝 Contributing & Git Workflow
+
+We welcome contributions from the community! Please read our official [**Contributing & Git Workflow Guidelines**](CONTRIBUTING.md) to understand our branch protection policies, commit standards, Pull Request lifecycle, and conflict resolution protocols.
+
+---
+
 ## 📄 License & Legal Notice
 
 Autonomous Career Engine (ACE) is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**.  
