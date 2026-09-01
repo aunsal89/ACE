@@ -20,6 +20,7 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/openrouter_free_models.json
+data/fonts/
 !data/.gitkeep
 
 # Local user tenants & private CV sources

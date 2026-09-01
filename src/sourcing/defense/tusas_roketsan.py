@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from src.config import SourcingSettings, TenantProfile
-from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.database.models import JobListingCreate, JobStatus
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
 
@@ -53,7 +53,7 @@ class TusasScraper(BaseScraper):
             url=url,
             description_raw=desc,
             description_cleaned=desc.strip(),
-            assigned_track=TrackType.TRACK_A,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=ext_id
         )
@@ -103,7 +103,7 @@ class RoketsanScraper(BaseScraper):
             url=url,
             description_raw=desc,
             description_cleaned=desc.strip(),
-            assigned_track=TrackType.TRACK_A,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=ext_id
         )

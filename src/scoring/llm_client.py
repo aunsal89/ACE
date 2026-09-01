@@ -18,7 +18,7 @@ from src.utils.logger import logger
 
 class OpportunityEvaluationSchema(BaseModel):
     """Schema for LLM opportunity scoring."""
-    track: str = "TRACK_A"
+    track: Optional[str] = "GENERAL"
     overall_score: float = 70.0
     comp_score: float = 0.0
     location_score: float = 0.0
@@ -37,11 +37,7 @@ class OpportunityEvaluationSchema(BaseModel):
             return data
 
         # 1. Normalize track
-        raw_track = str(data.get("track") or data.get("assigned_track") or data.get("target_track") or "TRACK_A").upper()
-        if "B" in raw_track or "SECONDARY" in raw_track or "QUANT" in raw_track:
-            data["track"] = "TRACK_B"
-        else:
-            data["track"] = "TRACK_A"
+        data["track"] = str(data.get("track") or "GENERAL")
 
         # 2. Normalize overall_score
         score_val = (
@@ -210,33 +206,19 @@ class LLMScoringClient:
         return OpportunityEvaluationSchema.model_validate(res)
 
     def _build_tenant_prompt_context(self) -> str:
-        """Construct candidate context string from tenant profile and sources of truth."""
         t = self.tenant
-        ta = t.tracks.track_a
-        tb = t.tracks.track_b
+        p = t.preferences
 
         lines = [
             f"Candidate Name: {t.name}",
             f"Current Location: {t.location_current}",
-            f"Primary Target Track: {ta.name}",
-            f"- Target Titles: {', '.join(ta.target_titles)}",
-            f"- Target Locations: {', '.join(ta.target_locations)}",
-            f"- Min Compensation: ${ta.compensation.min_monthly_net_usd:,.0f}/month {ta.compensation.currency}",
-            f"- Core Competencies: {', '.join(ta.core_competencies)}",
-            f"- Exclusions: {', '.join(ta.exclusions)}",
+            f"Target Roles/Titles: {', '.join(p.target_titles)}",
+            f"Target Locations: {', '.join(p.target_locations)}",
+            f"Min Compensation: ${p.compensation.min_monthly_net_usd:,.0f}/month {p.compensation.currency}",
+            f"Core Competencies: {', '.join(p.core_competencies)}",
+            f"Exclusions: {', '.join(p.exclusions)}",
         ]
 
-        if tb.enabled:
-            lines.extend([
-                f"Secondary Target Track: {tb.name}",
-                f"- Target Titles: {', '.join(tb.target_titles)}",
-                f"- Target Regions: {', '.join(tb.target_regions)}",
-                f"- Target Cities: {', '.join(tb.target_cities)}",
-                f"- Excluded Regions: {', '.join(tb.excluded_regions)}",
-                f"- Core Competencies: {', '.join(tb.core_competencies)}",
-            ])
-
-        # Add snippet of CV if available
         cv_path = t.sources_of_truth.cv_markdown
         if cv_path and cv_path.exists():
             cv_text = cv_path.read_text(encoding="utf-8", errors="replace")
@@ -252,83 +234,48 @@ class LLMScoringClient:
         return "\n".join(lines)
 
     def _evaluate_deterministic(self, job: JobListing) -> Dict[str, Any]:
-        """Hard rule-based heuristic evaluator when API calls are unavailable."""
         title_desc = f"{job.title} {job.description_raw or ''}".lower()
         company_loc = f"{job.company} {job.location or ''}".lower()
 
-        # Track assignment
-        assign_track_b = False
-        if self.tenant.tracks.track_b.enabled:
-            tb_titles = [t.lower() for t in self.tenant.tracks.track_b.target_titles]
-            if any(t in title_desc for t in tb_titles) or "quant" in title_desc or "trading" in title_desc:
-                assign_track_b = True
+        p = self.tenant.preferences
+        matched_kws = [k for k in p.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
+        exclusions_hit = [e for e in p.exclusions if e.lower() in title_desc]
 
-        if not assign_track_b:
-            ta = self.tenant.tracks.track_a
-            matched_kws = [k for k in ta.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
-            exclusions_hit = [e for e in ta.exclusions if e.lower() in title_desc]
+        # Check location match against target locations or remote
+        loc_match = any(loc.lower().split(",")[0].strip() in company_loc for loc in p.target_locations) or job.is_remote
+        location_score = 100.0 if loc_match else 30.0
 
-            loc_match = any(loc.lower().split(",")[0] in company_loc for loc in ta.target_locations) or job.is_remote
-            location_score = 100.0 if loc_match else 30.0
+        # Title match bonus
+        title_match = any(t.lower() in title_desc for t in p.target_titles)
+        tech_score = min(100.0, (60.0 if title_match else 50.0) + len(matched_kws) * 10.0)
+        leadership_score = 90.0 if any(l in title_desc for l in ["lead", "director", "head", "manager", "chief", "principal", "architect"]) else 70.0
+        comp_score = 85.0
 
-            tech_score = min(100.0, 50.0 + len(matched_kws) * 10.0)
-            leadership_score = 90.0 if any(l in title_desc for l in ["lead", "director", "head", "manager", "chief", "principal", "architect"]) else 70.0
-            comp_score = 85.0
-
-            if exclusions_hit or not loc_match:
-                fits = False
-                overall = 30.0 if not loc_match else 30.0
-                rec = "REJECT"
-            else:
-                overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
-                fits = overall >= 75.0 and location_score >= 60.0
-                rec = "QUEUE" if fits else "MANUAL_REVIEW" if overall >= 60.0 else "REJECT"
-
-            return {
-                "track": "TRACK_A",
-                "overall_score": round(overall, 1),
-                "comp_score": comp_score,
-                "location_score": location_score,
-                "tech_stack_score": tech_score,
-                "leadership_score": leadership_score,
-                "fits_criteria": fits,
-                "matched_keywords": matched_kws[:6],
-                "missing_keywords": [k for k in ta.core_competencies if k not in matched_kws][:4],
-                "reasoning": f"Track A evaluation: {len(matched_kws)} competencies matched. Location fit: {loc_match}.",
-                "recommendation": rec,
-                "model_used": "rule_engine_deterministic"
-            }
-
+        if exclusions_hit or not loc_match:
+            fits = False
+            overall = 30.0 if not loc_match else 35.0
+            rec = "REJECT"
         else:
-            tb = self.tenant.tracks.track_b
-            matched_kws = [k for k in tb.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
-            is_excluded = any(ex.lower() in company_loc for ex in tb.excluded_regions)
+            overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
+            fits = overall >= 75.0 and location_score >= 60.0
+            rec = "QUEUE" if fits else "MANUAL_REVIEW" if overall >= 60.0 else "REJECT"
 
-            loc_match = any(c.lower() in company_loc for c in tb.target_cities) or job.is_remote
-            location_score = 0.0 if is_excluded else 100.0 if loc_match else 30.0
+        missing_kws = [k for k in p.core_competencies if k not in matched_kws][:4]
 
-            tech_score = min(100.0, 60.0 + len(matched_kws) * 10.0)
-            leadership_score = 90.0
-            comp_score = 90.0
-
-            fits = not is_excluded and loc_match and tech_score >= 60
-            overall = (tech_score * 0.45) + (location_score * 0.35) + (comp_score * 0.20) if loc_match else 30.0
-            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if (is_excluded or not loc_match) else "MANUAL_REVIEW"
-
-            return {
-                "track": "TRACK_B",
-                "overall_score": round(overall, 1),
-                "comp_score": comp_score,
-                "location_score": location_score,
-                "tech_stack_score": tech_score,
-                "leadership_score": leadership_score,
-                "fits_criteria": fits,
-                "matched_keywords": matched_kws[:6],
-                "missing_keywords": [k for k in tb.core_competencies if k not in matched_kws][:4],
-                "reasoning": f"Track B evaluation: Role in target region ({job.location}). Technical fit: {tech_score:.0f}%.",
-                "recommendation": rec,
-                "model_used": "rule_engine_deterministic"
-            }
+        return {
+            "track": "GENERAL",
+            "overall_score": round(overall, 1),
+            "comp_score": comp_score,
+            "location_score": location_score,
+            "tech_stack_score": tech_score,
+            "leadership_score": leadership_score,
+            "fits_criteria": fits,
+            "matched_keywords": matched_kws[:6],
+            "missing_keywords": missing_kws,
+            "reasoning": f"Deterministic evaluation: {len(matched_kws)} competencies matched. Location fit: {loc_match}.",
+            "recommendation": rec,
+            "model_used": "rule_engine_deterministic"
+        }
 
     def _evaluate_with_gemini(self, job: JobListing) -> Optional[Dict[str, Any]]:
         from google import genai
@@ -349,7 +296,6 @@ Description: {job.description_raw}
 
 Return ONLY valid JSON matching this schema:
 {{
-  "track": "TRACK_A" or "TRACK_B",
   "overall_score": float between 0 and 100,
   "comp_score": float between 0 and 100,
   "location_score": float between 0 and 100,
@@ -385,7 +331,7 @@ Return ONLY valid JSON matching this schema:
         system_prompt = (
             f"You are an executive career evaluation AI assessing job opportunities for {self.tenant.name}.\n"
             f"{candidate_context}\n\n"
-            "Return ONLY a JSON object with keys: track, overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
+            "Return ONLY a JSON object with keys: overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
         )
 
         user_content = (
@@ -395,7 +341,7 @@ Return ONLY valid JSON matching this schema:
             f"Location: {job.location or 'N/A'}\n"
             f"Description: {job.description_raw or 'N/A'}\n\n"
             f"Return ONLY valid JSON matching schema:\n"
-            f'{{"track": "TRACK_A", "overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
+            f'{{"overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
             f'"tech_stack_score": 90.0, "leadership_score": 90.0, "fits_criteria": true, '
             f'"matched_keywords": ["keyword1"], "missing_keywords": [], '
             f'"reasoning": "rationale", "recommendation": "QUEUE"}}'
@@ -417,6 +363,10 @@ Return ONLY valid JSON matching this schema:
 
     def _evaluate_with_openai(self, job: JobListing) -> Optional[Dict[str, Any]]:
         return None
+
+
+# Alias for backward compatibility
+ScoringLLMClient = LLMScoringClient
 
 
 # Alias for backward compatibility

@@ -45,7 +45,7 @@ ACE/
 ├── requirements.txt           # Unified dependency manifest
 ├── run.py                     # Root executable CLI entry point
 ├── .env.example               # Annotated credentials template (Gemini, OpenRouter, SerpApi, etc.)
-├── .gitignore                 # Tenant dynamic isolation, DB, inbox staging exclusions
+├── .gitignore                 # Tenant dynamic isolation, DB, inbox staging exclusions, fonts
 ├── config/
 │   ├── config.yaml            # Engine core configuration (relative paths, LLM, sourcing)
 │   ├── profile.example.yaml   # Generalized candidate profile template
@@ -53,12 +53,13 @@ ACE/
 │       └── .gitkeep
 ├── data/                      # Local SQLite database & dynamic OpenRouter model cache
 │   ├── career_engine.db       # Job listings, scoring evaluations, application packages
+│   ├── fonts/                 # Dynamically cached Unicode TTF fonts (git-ignored)
 │   └── openrouter_free_models.json
 ├── inbox/                     # Staged application dossiers & review dashboard
 │   ├── index.html             # Self-contained, responsive HTML review dashboard
 │   └── <tenant_id>/           # Tenant-isolated staged application packages
-│       ├── track_a_primary/
-│       └── track_b_secondary/
+│       └── <date>/
+│           └── <company>_<role>_<short_id>/
 ├── src/
 │   ├── cli.py                 # Central CLI commands (setup, tenant, import-cv, pipeline, etc.)
 │   ├── config.py              # OS-agnostic dynamic path resolution & TenantManager
@@ -67,16 +68,16 @@ ACE/
 │   ├── scoring/               # Fit evaluation, LLM client & OpenRouter dynamic router
 │   ├── applicator/            # Resume & Cover Letter drafting pipeline
 │   └── utils/                 # PDF renderer, CV parser, HTML dashboard, notifications, hashing, logger
-└── tests/                     # 35+ unit and integration tests across 7 test modules
+└── tests/                     # 34 unit and integration tests across 7 test modules
 ```
 
 ---
 
 ## 4. Technical Invariants & System Modules
 
-### 4.1 Multi-Tenant Device Management
+### 4.1 Multi-Tenant Device Management & Unified Preferences
 - Multiple candidate profiles can coexist on one machine.
-- Each tenant profile resides in `config/tenants/<tenant_id>/profile.yaml` with its own `sources/` (`Experience.md`, `Education.md`, `Toolbox.md`, `Summary.md`).
+- Each tenant profile resides in `config/tenants/<tenant_id>/profile.yaml` with unified `preferences:` (target titles, locations, compensation, experience requirements, core competencies, exclusions) and its own `sources/` (`Experience.md`, `Education.md`, `Toolbox.md`, `Summary.md`).
 - Active tenant is dynamically tracked in `config.yaml` or overridden via `--tenant-id <id>`.
 - Default fallback: If no tenants exist, running `python run.py pipeline` automatically launches `interactive_setup_wizard`.
 
@@ -86,13 +87,14 @@ ACE/
 - Invoked via `python run.py import-cv <path_to_cv> [--tenant-id <id>]` or through the interactive setup wizard.
 
 ### 4.3 Resilient Multi-Provider LLM Scoring (`src/scoring/`)
-- Evaluates candidate fit against target titles, locations, compensation minimums, and tech stack competencies.
+- Evaluates candidate fit against target titles, locations, compensation minimums, and tech stack competencies directly from candidate preferences and CV markdown.
 - **Dynamic OpenRouter Router:** Queries `https://openrouter.ai/api/v1/models`, discovers active zero-cost models, ranks them via heuristic formula, and executes with two-level retry and cascading fallback.
 - **Deterministic Rule Fallback:** Evaluates keywords and location criteria even during total API outage.
 
 ### 4.4 Staged Application Generation (`src/applicator/`)
-- Staged into `inbox/<tenant_id>/track_<a|b>/<date>/<company>_<role>_<id>/`.
+- Staged into `inbox/<tenant_id>/<date>/<company>_<role>_<id>/`.
 - Synthesizes tailored Markdown and renders publication-quality vector PDFs (`render_markdown_to_pdf`).
+- **Dynamic Unicode Fonts:** Automatically downloads NotoSans TTFs into `data/fonts/` (git-ignored) on-demand across Linux, macOS, and Windows.
 - Includes comprehensive `Job_Details.md` with 1-click review CLI action triggers (`python run.py approve <id>`, `python run.py reject <id>`).
 
 ### 4.5 Executive Review Dashboard (`inbox/index.html`)
@@ -110,11 +112,11 @@ ACE/
 | `python run.py import-cv <path_to_cv>` | Ingest PDF/MD CV and extract structured sources |
 | `python run.py tenant list` | List all local candidate tenants with active status |
 | `python run.py tenant switch <tenant_id>` | Switch active candidate tenant |
-| `python run.py tenant show [tenant_id]` | Display tenant configuration and CV sources |
+| `python run.py tenant show [tenant_id]` | Display tenant configuration, target preferences, and CV sources |
 | `python run.py tenant create` | Interactive prompt to onboard a new candidate |
 | `python run.py dashboard` | Regenerate HTML review dashboard in `/inbox/` |
 | `python run.py status` | Display system overview and database pipeline stats |
-| `python run.py list-jobs [--status] [--track]` | View job listings in database |
+| `python run.py list-jobs [--status]` | View job listings in database |
 | `python run.py stage <job_id>` | Force stage application dossier for a specific listing |
 | `python run.py approve <job_id>` | Mark job status as `APPLIED` |
 | `python run.py reject <job_id>` | Mark job status as `REJECTED` |

@@ -17,6 +17,7 @@ class JobStatus(str, Enum):
 
 
 class TrackType(str, Enum):
+    GENERAL = "GENERAL"
     TRACK_A = "TRACK_A"
     TRACK_B = "TRACK_B"
     UNASSIGNED = "UNASSIGNED"
@@ -69,7 +70,7 @@ class JobListingCreate(BaseModel):
     salary_max: Optional[float] = None
     salary_currency: Optional[str] = None
     salary_period: Optional[str] = None
-    assigned_track: TrackType = TrackType.UNASSIGNED
+    assigned_track: Optional[str] = "GENERAL"
     status: JobStatus = JobStatus.DISCOVERED
     raw_metadata_json: Optional[str] = None
 
@@ -83,7 +84,7 @@ class JobListing(JobListingCreate):
 class ScoringEvaluationCreate(BaseModel):
     job_id: str
     tenant_id: str
-    track: str
+    track: Optional[str] = "GENERAL"
     overall_score: float
     comp_score: Optional[float] = None
     location_score: Optional[float] = None
@@ -101,7 +102,7 @@ class ScoringEvaluation(BaseModel):
     id: str
     job_id: str
     tenant_id: str
-    track: str
+    track: Optional[str] = "GENERAL"
     overall_score: float
     comp_score: Optional[float] = None
     location_score: Optional[float] = None
@@ -119,7 +120,7 @@ class ScoringEvaluation(BaseModel):
 class ApplicationPackageCreate(BaseModel):
     job_id: str
     tenant_id: str
-    track: str
+    track: Optional[str] = "GENERAL"
     resume_md_path: Optional[str] = None
     resume_pdf_path: Optional[str] = None
     cover_letter_md_path: Optional[str] = None

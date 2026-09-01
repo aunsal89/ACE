@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # Determine project root dynamically (OS-agnostic)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -128,9 +128,7 @@ class ExperienceRequirements(BaseModel):
     max_team_size_managed: int = 0
 
 
-class TrackAProfile(BaseModel):
-    name: str = "Primary Target Career Track"
-    enabled: bool = True
+class JobPreferences(BaseModel):
     target_titles: List[str] = Field(default_factory=list)
     target_sectors: List[str] = Field(default_factory=list)
     target_locations: List[str] = Field(default_factory=list)
@@ -144,22 +142,6 @@ class ShowcaseAsset(BaseModel):
     name: str
     url: str
     summary: str = ""
-
-
-class TrackBProfile(BaseModel):
-    name: str = "Secondary Target Career Track"
-    enabled: bool = False
-    target_titles: List[str] = Field(default_factory=list)
-    target_regions: List[str] = Field(default_factory=list)
-    target_cities: List[str] = Field(default_factory=list)
-    excluded_regions: List[str] = Field(default_factory=list)
-    core_competencies: List[str] = Field(default_factory=list)
-    showcase_asset: Optional[ShowcaseAsset] = None
-
-
-class TracksConfig(BaseModel):
-    track_a: TrackAProfile = Field(default_factory=TrackAProfile)
-    track_b: TrackBProfile = Field(default_factory=TrackBProfile)
 
 
 class ProductEngineeringShowcase(BaseModel):
@@ -214,9 +196,78 @@ class TenantProfile(BaseModel):
     location_current: str = "Remote / Anywhere"
     links: TenantLinks = Field(default_factory=TenantLinks)
     sources_of_truth: SourcesOfTruth = Field(default_factory=SourcesOfTruth)
-    tracks: TracksConfig = Field(default_factory=TracksConfig)
+    preferences: JobPreferences = Field(default_factory=JobPreferences)
     product_engineering_showcase: Optional[ProductEngineeringShowcase] = None
     generation_preferences: GenerationPreferences = Field(default_factory=GenerationPreferences)
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_legacy_tracks(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        if "preferences" not in data and "tracks" in data:
+            tracks = data.get("tracks", {})
+            ta = tracks.get("track_a", {}) if isinstance(tracks, dict) else {}
+            tb = tracks.get("track_b", {}) if isinstance(tracks, dict) else {}
+
+            titles = list(ta.get("target_titles", []))
+            for t in tb.get("target_titles", []):
+                if t not in titles:
+                    titles.append(t)
+
+            locations = list(ta.get("target_locations", []))
+            for l in tb.get("target_cities", []) + tb.get("target_regions", []):
+                if l not in locations:
+                    locations.append(l)
+
+            competencies = list(ta.get("core_competencies", []))
+            for c in tb.get("core_competencies", []):
+                if c not in competencies:
+                    competencies.append(c)
+
+            exclusions = list(ta.get("exclusions", []))
+            for e in tb.get("excluded_regions", []):
+                if e not in exclusions:
+                    exclusions.append(e)
+
+            comp = ta.get("compensation", {})
+            exp = ta.get("experience_requirements", {})
+
+            data["preferences"] = {
+                "target_titles": titles,
+                "target_sectors": ta.get("target_sectors", []),
+                "target_locations": locations,
+                "compensation": comp if comp else {},
+                "experience_requirements": exp if exp else {},
+                "core_competencies": competencies,
+                "exclusions": exclusions,
+            }
+        return data
+
+    @property
+    def tracks(self) -> Any:
+        """Backward compatibility helper mapping legacy track access to preferences."""
+        class _LegacyTrackWrapper:
+            def __init__(self, prefs: JobPreferences):
+                self.name = "Target Career Track"
+                self.enabled = True
+                self.target_titles = prefs.target_titles
+                self.target_locations = prefs.target_locations
+                self.target_sectors = prefs.target_sectors
+                self.compensation = prefs.compensation
+                self.experience_requirements = prefs.experience_requirements
+                self.core_competencies = prefs.core_competencies
+                self.exclusions = prefs.exclusions
+                self.target_regions = prefs.target_locations
+                self.target_cities = prefs.target_locations
+                self.excluded_regions = prefs.exclusions
+
+        class _LegacyTracks:
+            def __init__(self, prefs: JobPreferences):
+                self.track_a = _LegacyTrackWrapper(prefs)
+                self.track_b = _LegacyTrackWrapper(prefs)
+
+        return _LegacyTracks(self.preferences)
 
 
 def load_engine_config(config_path: Optional[str | Path] = None) -> EngineConfig:
@@ -332,26 +383,23 @@ class TenantManager:
                 "education_markdown": str(sources_dir / "Education.md"),
                 "skills_toolbox": str(sources_dir / "Toolbox.md"),
             },
-            "tracks": {
-                "track_a": {
-                    "name": "Target Career Track",
-                    "enabled": True,
-                    "target_titles": target_titles or ["Software Engineer", "Systems Architect"],
-                    "target_locations": target_locations or [location.strip()],
-                    "compensation": {
-                        "min_monthly_net_usd": float(min_salary),
-                        "currency": currency,
-                        "period": "monthly",
-                        "type": "net",
-                    },
-                    "experience_requirements": {
-                        "min_total_years": 5,
-                        "min_leadership_years": 0,
-                        "max_team_size_managed": 0,
-                    },
-                    "core_competencies": [],
-                    "exclusions": ["Junior Developer", "Intern"],
-                }
+            "preferences": {
+                "target_titles": target_titles or ["Software Engineer", "Systems Architect"],
+                "target_locations": target_locations or [location.strip()],
+                "target_sectors": [],
+                "compensation": {
+                    "min_monthly_net_usd": float(min_salary),
+                    "currency": currency,
+                    "period": "monthly",
+                    "type": "net",
+                },
+                "experience_requirements": {
+                    "min_total_years": 5,
+                    "min_leadership_years": 0,
+                    "max_team_size_managed": 0,
+                },
+                "core_competencies": [],
+                "exclusions": ["Junior Developer", "Intern"],
             },
             "generation_preferences": {
                 "tailored_cv_format": "markdown_and_pdf",
@@ -366,3 +414,4 @@ class TenantManager:
             yaml.dump(profile_data, f, sort_keys=False, allow_unicode=True)
 
         return self.get_tenant(clean_id)
+

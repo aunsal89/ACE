@@ -7,7 +7,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from src.config import SourcingSettings, TenantProfile
-from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.database.models import JobListingCreate, JobStatus
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
 from src.utils.http import request_with_retry
@@ -91,15 +91,6 @@ class BaykarScraper(BaseScraper):
         ext_id = str(raw_data.get("external_id", ""))
         desc = raw_data.get("description", "")
 
-        # Auto-classify Track A if relevant to embedded, motor control, powertrain, avionics, flight control
-        t_low = f"{title} {desc}".lower()
-        is_embedded = any(k in t_low for k in [
-            "gömülü", "embedded", "yazılım", "software", "mbd", "simulink", "kontrol",
-            "motor", "aviyonik", "güç", "powertrain", "bms", "otopilot", "flight control"
-        ])
-
-        track = TrackType.TRACK_A if is_embedded else TrackType.UNASSIGNED
-
         dedup_hash = generate_deduplication_hash(
             company=company,
             title=title,
@@ -121,7 +112,7 @@ class BaykarScraper(BaseScraper):
             url=url,
             description_raw=desc,
             description_cleaned=desc.strip(),
-            assigned_track=track,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=ext_id
         )
