@@ -120,9 +120,9 @@ class ApplicationGenerator(BaseApplicator):
             links_parts.append(f"**Portfolio:** {t.links.portfolio_showcase}")
         links_line = " | ".join(links_parts) if links_parts else ""
 
-        skills = ", ".join(track_profile.core_competencies[:10]) if track_profile.core_competencies else "Domain Architecture, Engineering Execution, High-Impact Delivery"
+        skills = ", ".join(prefs.core_competencies[:10]) if prefs.core_competencies else "Domain Architecture, Engineering Execution, High-Impact Delivery"
         
-        exp_reqs = getattr(track_profile, "experience_requirements", None)
+        exp_reqs = getattr(prefs, "experience_requirements", None)
         years_exp = getattr(exp_reqs, "min_total_years", 5) if exp_reqs else 5
 
         summary = (
