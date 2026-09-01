@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import urllib.request
 from pathlib import Path
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -18,6 +19,32 @@ LATO_BOLD = "/usr/share/fonts/truetype/lato/Lato-Bold.ttf"
 LATO_ITALIC = "/usr/share/fonts/truetype/lato/Lato-Italic.ttf"
 
 
+NOTO_URLS = {
+    "NotoSans-Regular.ttf": "https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf",
+    "NotoSans-Bold.ttf": "https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf",
+    "NotoSans-Italic.ttf": "https://raw.githubusercontent.com/notofonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Italic.ttf"
+}
+
+def ensure_unicode_fonts() -> dict:
+    """Download NotoSans TTF fonts to data/fonts if not present."""
+    base_dir = Path(__file__).resolve().parent.parent.parent
+    font_dir = base_dir / "data" / "fonts"
+    font_dir.mkdir(parents=True, exist_ok=True)
+    
+    font_paths = {}
+    for filename, url in NOTO_URLS.items():
+        font_path = font_dir / filename
+        font_paths[filename] = str(font_path)
+        if not font_path.exists():
+            try:
+                logging.info(f"Downloading Unicode font: {filename}...")
+                urllib.request.urlretrieve(url, str(font_path))
+            except Exception as e:
+                logging.warning(f"Failed to download {filename}: {e}")
+                
+    return font_paths
+
+
 class DocumentPDF(FPDF):
     """Custom styled PDF document for executive CVs and Cover Letters."""
 
@@ -28,8 +55,16 @@ class DocumentPDF(FPDF):
         self.set_margins(18, 18, 18)
         self.font_family = "Helvetica"
 
-        # Register Unicode Lato Font if available
-        if os.path.exists(LATO_REGULAR) and os.path.exists(LATO_BOLD):
+        # Try to use Noto Sans Unicode fonts first
+        font_paths = ensure_unicode_fonts()
+        if os.path.exists(font_paths["NotoSans-Regular.ttf"]) and os.path.exists(font_paths["NotoSans-Bold.ttf"]):
+            self.add_font("NotoSans", "", font_paths["NotoSans-Regular.ttf"])
+            self.add_font("NotoSans", "B", font_paths["NotoSans-Bold.ttf"])
+            if os.path.exists(font_paths["NotoSans-Italic.ttf"]):
+                self.add_font("NotoSans", "I", font_paths["NotoSans-Italic.ttf"])
+            self.font_family = "NotoSans"
+        # Fallback to Lato if NotoSans download failed
+        elif os.path.exists(LATO_REGULAR) and os.path.exists(LATO_BOLD):
             self.add_font("Lato", "", LATO_REGULAR)
             self.add_font("Lato", "B", LATO_BOLD)
             if os.path.exists(LATO_ITALIC):
