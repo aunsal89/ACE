@@ -150,25 +150,38 @@ class ApifyLinkedInScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        titles = self.tenant.preferences.target_titles or ["Senior Systems Engineer"]
+        locations = self.tenant.preferences.target_locations or ["Remote"]
+        competencies = self.tenant.preferences.core_competencies or ["Architecture Design", "Team Leadership"]
+
+        t1 = titles[0]
+        t2 = titles[1] if len(titles) > 1 else f"Principal {titles[0]}"
+        l1 = locations[0]
+        l2 = locations[1] if len(locations) > 1 else locations[0]
+
+        kws1 = ", ".join(competencies[:3]) if competencies else "Technical Leadership, Microservices"
+        kws2 = ", ".join(competencies[1:4] or competencies[:2]) if competencies else "Performance Optimization, Distributed Systems"
+
         return [
             {
-                "jobId": "li_9081234",
-                "title": "Director of Embedded Software & Functional Safety (ISO 26262)",
-                "companyName": "TOGG",
-                "location": "Gebze, Kocaeli, Turkey",
+                "jobId": "li_mock_9081234",
+                "title": t1,
+                "companyName": "Apex Technologies Group",
+                "location": l1,
                 "jobUrl": "https://www.linkedin.com/jobs/view/9081234",
-                "description": "Directing next-generation EV architecture, AUTOSAR software stacks, VCU/BMS controllers, and safety lifecycle ASIL C/D.",
-                "salary": "$9,500 - $12,000 / month (Net)",
-                "isRemote": False,
+                "description": f"Leading technical architecture and delivery as {t1}. Core requirements: {kws1}.",
+                "salary": "$8,500 - $11,500 / month",
+                "isRemote": "remote" in l1.lower(),
             },
             {
-                "jobId": "li_9085678",
-                "title": "Senior Quantitative Developer - Spot & Futures Execution",
-                "companyName": "Wintermute",
-                "location": "London, UK (Remote)",
+                "jobId": "li_mock_9085678",
+                "title": t2,
+                "companyName": "Horizon Digital Innovations",
+                "location": l2,
                 "jobUrl": "https://www.linkedin.com/jobs/view/9085678",
-                "description": "Architect high-speed algorithmic execution engines, risk controllers, and automated market-making algorithms using Python and C++.",
-                "salary": "£160,000 - £200,000 / year",
-                "isRemote": True,
+                "description": f"Spearheading development and system scalability as {t2}. Core requirements: {kws2}.",
+                "salary": "$9,500 - $13,000 / month",
+                "isRemote": "remote" in l2.lower(),
             }
         ]

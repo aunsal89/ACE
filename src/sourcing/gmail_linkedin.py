@@ -309,30 +309,42 @@ class GmailLinkedInScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
-        """Verified mock fixtures for testing without network/IMAP."""
+        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        titles = self.tenant.preferences.target_titles or ["Lead Software Engineer"]
+        locations = self.tenant.preferences.target_locations or ["Remote"]
+        competencies = self.tenant.preferences.core_competencies or ["Software Engineering", "Scalable Systems"]
+
+        t1 = titles[0]
+        t2 = titles[1] if len(titles) > 1 else f"Senior {titles[0]}"
+        l1 = locations[0]
+        l2 = locations[1] if len(locations) > 1 else locations[0]
+
+        kws1 = ", ".join(competencies[:3]) if competencies else "Architecture, Clean Code, CI/CD"
+        kws2 = ", ".join(competencies[1:4] or competencies[:2]) if competencies else "System Design, Team Mentorship"
+
         return [
             {
                 "job_id": "4456212827",
-                "title": "Head of Embedded E/E Platforms (m/w/d)",
-                "company": "CLAAS",
-                "location": "Dissen, Lower Saxony, Germany",
+                "title": t1,
+                "company": "Vanguard Engineering Solutions",
+                "location": l1,
                 "url": "https://www.linkedin.com/jobs/view/4456212827",
-                "description_raw": "Leading next-generation embedded E/E platforms, AUTOSAR, and MBD for agricultural smart vehicles.",
-                "description_cleaned": "Leading next-generation embedded E/E platforms, AUTOSAR, and MBD for agricultural smart vehicles.",
+                "description_raw": f"Spearheading {t1} initiatives with expertise in {kws1}.",
+                "description_cleaned": f"Spearheading {t1} initiatives with expertise in {kws1}.",
                 "employment_type": "Full-time",
-                "email_subject": "Head of Embedded E/E Platforms (m/w/d) at CLAAS",
+                "email_subject": f"{t1} at Vanguard Engineering Solutions",
                 "email_date": "Fri, 28 Aug 2026 07:24:17 +0000",
             },
             {
                 "job_id": "4448083408",
-                "title": "Fachbereichsleiter Component Systems & Software (m/w/d)",
-                "company": "Rheinmetall",
-                "location": "Kassel, Hesse, Germany",
+                "title": t2,
+                "company": "Pinnacle Systems Group",
+                "location": l2,
                 "url": "https://www.linkedin.com/jobs/view/4448083408",
-                "description_raw": "Directing defense electronics software engineering and mission-critical embedded systems.",
-                "description_cleaned": "Directing defense electronics software engineering and mission-critical embedded systems.",
+                "description_raw": f"Directing technical delivery and systems development as {t2} specializing in {kws2}.",
+                "description_cleaned": f"Directing technical delivery and systems development as {t2} specializing in {kws2}.",
                 "employment_type": "Full-time",
-                "email_subject": "Fachbereichsleiter Component Systems & Software at Rheinmetall",
+                "email_subject": f"{t2} at Pinnacle Systems Group",
                 "email_date": "Fri, 28 Aug 2026 07:24:17 +0000",
             },
         ]

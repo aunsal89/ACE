@@ -68,26 +68,32 @@ def normalize_position_group(title: Optional[str]) -> str:
         return "Specialized Technical"
     t = title.lower()
 
-    # Domain patterns
-    if any(k in t for k in ("quantitative developer", "quant developer", "trading systems", "execution", "c# quantitative", "algorithmic trading", "trading bot")):
-        return "Quantitative Developer & Trading"
-    if any(k in t for k in ("quantitative analyst", "quant analyst", "quantitative research", "quant research", "prime finance", "algorithmic trading platforms", "machine learning strategies")):
-        return "Quantitative Research & Analytics"
-    if any(k in t for k in ("flight control", "uçuş kontrol", "aviyonik", "avionics", "güdüm")):
-        return "Avionics & Flight Control"
-    if any(k in t for k in ("motor control", "traction control", "güç elektroniği", "power electronics", "inverter", "elektrikli güç")):
-        return "Power Electronics & Motor Control"
-    if any(k in t for k in ("head of", "director", "abteilungsleiter", "fachbereichsleiter", "engineering manager", "software project manager", "müdür")):
-        return "Executive & Engineering Management"
-    if any(k in t for k in ("lead", "lider", "takım lideri", "principal", "kıdemli", "architect", "mimar")):
-        return "Lead / Principal / Architect"
-    if any(k in t for k in ("embedded", "gömülü", "firmware", "rtos", "autosar")):
+    # Executive & Engineering Leadership
+    if any(k in t for k in ("head of", "director", "abteilungsleiter", "fachbereichsleiter", "engineering manager", "software project manager", "müdür", "vp", "chief")):
+        return "Executive & Engineering Leadership"
+    # System Architecture & Technical Leads
+    if any(k in t for k in ("principal", "architect", "mimar", "tech lead", "technical lead", "lead engineer", "takım lideri")):
+        return "Lead / Principal / Architecture"
+    # Embedded & Firmware Systems
+    if any(k in t for k in ("embedded", "gömülü", "firmware", "rtos", "autosar", "bms", "vcu", "mcu", "dsp")):
         return "Embedded & Firmware Systems"
+    # Control Systems & Robotics
+    if any(k in t for k in ("flight control", "uçuş kontrol", "aviyonik", "avionics", "güdüm", "guidance", "robotics", "motor control", "traction control", "inverter", "power electronics", "güç elektroniği")):
+        return "Control Systems & Robotics"
+    # AI, ML & Data Science
+    if any(k in t for k in ("machine learning", "deep learning", "data scientist", "data engineer", "ai engineer", "computer vision", "nlp", "llm")):
+        return "AI, ML & Data Science"
+    # Distributed Systems & Cloud Infrastructure
+    if any(k in t for k in ("cloud", "devops", "site reliability", "sre", "infrastructure", "kubernetes", "distributed systems", "backend")):
+        return "Cloud & Distributed Systems"
+    # Quantitative & Trading Systems
+    if any(k in t for k in ("quantitative", "quant", "algorithmic trading", "trading systems", "execution engine")):
+        return "Quantitative & Algorithmic Systems"
 
-    # Dynamic token extraction for new emerging titles
+    # Dynamic token extraction for arbitrary titles
     clean_t = re.sub(r"[\(\)\[\]/\-,\|]", " ", t)
     words = clean_t.split()
-    stop_words = {"and", "or", "the", "in", "of", "for", "with", "at", "senior", "junior", "iii", "ii", "i", "level", "m/w/d", "w/m/d", "f/m/d", "all", "genders"}
+    stop_words = {"and", "or", "the", "in", "of", "for", "with", "at", "senior", "junior", "staff", "iii", "ii", "i", "level", "m/w/d", "w/m/d", "f/m/d", "all", "genders"}
     cleaned_words = [w.capitalize() for w in words if w not in stop_words and len(w) > 2]
     if len(cleaned_words) >= 2:
         return f"{cleaned_words[0]} {cleaned_words[1]}"
@@ -185,7 +191,6 @@ def generate_inbox_dashboard(
 
         region_group = normalize_region_group(job.location, job.is_remote)
         pos_group = normalize_position_group(job.title)
-
         job_track = job.assigned_track.value if hasattr(job.assigned_track, "value") else str(job.assigned_track or "GENERAL")
 
         job_cards_data.append({
@@ -217,32 +222,32 @@ def generate_inbox_dashboard(
             "details_md_rel": details_md_rel,
         })
 
-    # Stats calculation
+    # Dynamic metrics calculation
     total_count = len(job_cards_data)
-    track_a_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_A")
-    track_b_count = sum(1 for j in job_cards_data if j["track"] == "TRACK_B")
     pending_count = sum(1 for j in job_cards_data if j.get("folder_rel_path"))
-    pending_track_a = sum(1 for j in job_cards_data if j.get("folder_rel_path") and j["track"] == "TRACK_A")
-    pending_track_b = sum(1 for j in job_cards_data if j.get("folder_rel_path") and j["track"] == "TRACK_B")
     approved_count = sum(1 for j in job_cards_data if j["status"] == "APPLIED")
     rejected_count = sum(1 for j in job_cards_data if j["status"] == "REJECTED")
     queued_count = sum(1 for j in job_cards_data if j["status"] == "QUEUED" and not j.get("folder_rel_path"))
     evaluated_count = sum(1 for j in job_cards_data if j["status"] == "EVALUATED" and not j.get("folder_rel_path"))
+    high_fit_count = sum(1 for j in job_cards_data if (j.get("score") or 0) >= 80)
+    mid_fit_count = sum(1 for j in job_cards_data if 60 <= (j.get("score") or 0) < 80)
+    low_fit_count = sum(1 for j in job_cards_data if (j.get("score") or 0) < 60)
+    remote_count = sum(1 for j in job_cards_data if j.get("is_remote"))
 
     html_content = _build_html_template(
         tenant=tenant,
         job_cards=job_cards_data,
         stats={
             "total": total_count,
-            "track_a": track_a_count,
-            "track_b": track_b_count,
+            "high_fit": high_fit_count,
+            "mid_fit": mid_fit_count,
+            "low_fit": low_fit_count,
             "pending": pending_count,
-            "pending_track_a": pending_track_a,
-            "pending_track_b": pending_track_b,
             "approved": approved_count,
             "rejected": rejected_count,
             "queued": queued_count,
             "evaluated": evaluated_count,
+            "remote": remote_count,
         },
         generated_time=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
@@ -696,13 +701,13 @@ def _build_html_template(
       border-color: var(--accent-blue);
       box-shadow: var(--shadow-sm);
     }}
-    .pill-track-toggle {{
+    .pill-sub-toggle {{
       padding: 3px 8px;
       font-size: 11px;
       font-weight: 600;
       border-radius: 4px;
     }}
-    .pill-track-toggle.active {{
+    .pill-sub-toggle.active {{
       background: var(--text-main);
       color: #ffffff;
       border-color: var(--text-main);
@@ -829,15 +834,15 @@ def _build_html_template(
       border-radius: 4px;
       letter-spacing: 0.02em;
     }}
-    .badge-track-a {{
-      background: var(--accent-amber-light);
-      color: var(--accent-amber);
-      border: 1px solid rgba(217, 119, 6, 0.3);
+    .badge-remote {{
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
     }}
-    .badge-track-b {{
-      background: var(--accent-purple-light);
-      color: var(--accent-purple);
-      border: 1px solid rgba(124, 58, 237, 0.3);
+    .badge-source {{
+      background: var(--bg-surface-subtle);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
     }}
     .badge-queued {{
       background: var(--accent-blue-light);
@@ -1268,21 +1273,17 @@ def _build_html_template(
           <div class="val" id="stat-total">{stats["total"]}</div>
           <div class="label">Total Sourced</div>
         </div>
-        <div class="stat-card" onclick="setTrackFilter('TRACK_A')">
-          <div class="val" style="color: var(--accent-amber);">{stats["track_a"]}</div>
-          <div class="label">Track A (Primary)</div>
-        </div>
-        <div class="stat-card" onclick="setTrackFilter('TRACK_B')">
-          <div class="val" style="color: var(--accent-purple);">{stats["track_b"]}</div>
-          <div class="label">Track B (Secondary)</div>
-        </div>
-        <div class="stat-card" onclick="setPrimaryFilter('staged')">
-          <div class="val" style="color: var(--accent-blue);">{stats["pending"]}</div>
-          <div class="label">Staged Packages</div>
+        <div class="stat-card" onclick="setScoreTierFilter('high')">
+          <div class="val" style="color: var(--accent-emerald);">{stats["high_fit"]}</div>
+          <div class="label">High Fit (80%+)</div>
         </div>
         <div class="stat-card" onclick="setPrimaryFilter('queued')">
           <div class="val" style="color: var(--accent-blue);">{stats["queued"]}</div>
           <div class="label">Queued (Ready)</div>
+        </div>
+        <div class="stat-card" onclick="setPrimaryFilter('staged')">
+          <div class="val" style="color: var(--accent-purple);">{stats["pending"]}</div>
+          <div class="label">Staged Packages</div>
         </div>
         <div class="stat-card" onclick="setPrimaryFilter('evaluated')">
           <div class="val" style="color: var(--accent-amber);">{stats["evaluated"]}</div>
@@ -1309,10 +1310,10 @@ def _build_html_template(
         <button class="toggle-btn" id="analyticsToggleBtn">▾ Hide Overview</button>
       </div>
       <div class="analytics-content" id="analyticsContent">
-        <!-- Track Distribution Donut -->
+        <!-- Fit Score Distribution Donut -->
         <div class="chart-box">
-          <h3>🎯 Track Breakdown <span class="chart-hint">Click to filter</span></h3>
-          <div class="donut-container" id="trackDonutContainer">
+          <h3>🎯 Fit Score Breakdown <span class="chart-hint">Click segment to filter</span></h3>
+          <div class="donut-container" id="fitDonutContainer">
             <!-- Rendered dynamically by JS -->
           </div>
         </div>
@@ -1347,7 +1348,7 @@ def _build_html_template(
     <div class="sticky-controls">
       <div class="controls-row-1">
         <div class="search-wrapper">
-          <input type="text" id="searchInput" placeholder='Search by title, company, location, recommendation (e.g. "Singapore + Quant", "MANUAL_REVIEW", ID...)' autocomplete="off" />
+          <input type="text" id="searchInput" placeholder='Search by title, company, location, keywords (e.g. "Istanbul + Lead", "Remote", ID...)' autocomplete="off" />
           <button class="search-clear-btn" id="searchClearBtn" onclick="clearSearch()" title="Clear Search">✕</button>
         </div>
         <div class="sort-control">
@@ -1376,12 +1377,21 @@ def _build_html_template(
             <button class="pill" data-filter="rejected" onclick="setPrimaryFilter('rejected')">❌ Rejected ({stats["rejected"]})</button>
           </div>
 
-          <!-- Secondary Track Filter Tabs -->
-          <div class="filter-pills" id="trackFilterPills">
-            <span class="filter-pills-label">Track:</span>
-            <button class="pill pill-track-toggle active" data-track="all" onclick="setTrackFilter('all')">All Tracks</button>
-            <button class="pill pill-track-toggle" data-track="TRACK_A" onclick="setTrackFilter('TRACK_A')">Track A (Embedded)</button>
-            <button class="pill pill-track-toggle" data-track="TRACK_B" onclick="setTrackFilter('TRACK_B')">Track B (Quant)</button>
+          <!-- Fit Score Tier Filter Tabs -->
+          <div class="filter-pills" id="scoreFilterPills">
+            <span class="filter-pills-label">Match:</span>
+            <button class="pill pill-sub-toggle active" data-score="all" onclick="setScoreTierFilter('all')">All Matches</button>
+            <button class="pill pill-sub-toggle" data-score="high" onclick="setScoreTierFilter('high')">High Fit (80%+)</button>
+            <button class="pill pill-sub-toggle" data-score="mid" onclick="setScoreTierFilter('mid')">Review (60-79%)</button>
+            <button class="pill pill-sub-toggle" data-score="low" onclick="setScoreTierFilter('low')">Low Fit (&lt;60%)</button>
+          </div>
+
+          <!-- Workplace Filter Tabs -->
+          <div class="filter-pills" id="workplaceFilterPills">
+            <span class="filter-pills-label">Mode:</span>
+            <button class="pill pill-sub-toggle active" data-workplace="all" onclick="setWorkplaceFilter('all')">All Modes</button>
+            <button class="pill pill-sub-toggle" data-workplace="remote" onclick="setWorkplaceFilter('remote')">Remote Only ({stats["remote"]})</button>
+            <button class="pill pill-sub-toggle" data-workplace="onsite" onclick="setWorkplaceFilter('onsite')">On-site / Hybrid</button>
           </div>
         </div>
 
@@ -1392,9 +1402,7 @@ def _build_html_template(
       <!-- Dedicated Staged Packages Sub-Filter Banner -->
       <div class="staged-subnav" id="stagedSubNav">
         <span class="staged-subnav-label">📦 Staged Packages Filter:</span>
-        <button class="btn btn-primary" id="btnStagedAll" onclick="setTrackFilter('all')">All Staged ({stats["pending"]})</button>
-        <button class="btn btn-folder" id="btnStagedTrackA" onclick="setTrackFilter('TRACK_A')">Track A Embedded Staged ({stats["pending_track_a"]})</button>
-        <button class="btn btn-url" id="btnStagedTrackB" onclick="setTrackFilter('TRACK_B')">Track B Quant Staged ({stats["pending_track_b"]})</button>
+        <span style="color: var(--accent-blue); font-weight: 500;">Showing {stats["pending"]} customized resume & cover letter dossiers generated in /inbox/</span>
       </div>
     </div>
 
@@ -1407,10 +1415,10 @@ def _build_html_template(
   <script>
     const JOBS = {jobs_json};
     let currentFilter = "all";         // 'all', 'staged', 'queued', 'evaluated', 'applied', 'rejected'
-    let currentTrack = "all";          // 'all', 'TRACK_A', 'TRACK_B'
+    let currentScoreTier = "all";      // 'all', 'high', 'mid', 'low'
+    let currentWorkplace = "all";      // 'all', 'remote', 'onsite'
     let selectedRegion = null;
     let selectedPosition = null;
-    let selectedRecommendation = null;
     let searchQuery = "";
     let currentSort = "date_desc";
     let isAnalyticsVisible = true;
@@ -1449,7 +1457,6 @@ def _build_html_template(
         p.classList.toggle("active", p.getAttribute("data-filter") === filter);
       }});
       
-      // Show or hide dedicated staged packages subnav
       const stagedSub = document.getElementById("stagedSubNav");
       if (currentFilter === "staged") {{
         stagedSub.style.display = "flex";
@@ -1460,10 +1467,18 @@ def _build_html_template(
       renderAll();
     }}
 
-    function setTrackFilter(track) {{
-      currentTrack = track;
-      document.querySelectorAll("#trackFilterPills .pill").forEach(p => {{
-        p.classList.toggle("active", p.getAttribute("data-track") === track);
+    function setScoreTierFilter(tier) {{
+      currentScoreTier = tier;
+      document.querySelectorAll("#scoreFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-score") === tier);
+      }});
+      renderAll();
+    }}
+
+    function setWorkplaceFilter(mode) {{
+      currentWorkplace = mode;
+      document.querySelectorAll("#workplaceFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-workplace") === mode);
       }});
       renderAll();
     }}
@@ -1478,11 +1493,6 @@ def _build_html_template(
       renderAll();
     }}
 
-    function setRecommendationFilter(rec) {{
-      selectedRecommendation = (selectedRecommendation === rec) ? null : rec;
-      renderAll();
-    }}
-
     function clearSearch() {{
       document.getElementById("searchInput").value = "";
       searchQuery = "";
@@ -1492,10 +1502,10 @@ def _build_html_template(
 
     function resetAllFilters() {{
       currentFilter = "all";
-      currentTrack = "all";
+      currentScoreTier = "all";
+      currentWorkplace = "all";
       selectedRegion = null;
       selectedPosition = null;
-      selectedRecommendation = null;
       searchQuery = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("searchClearBtn").style.display = "none";
@@ -1503,8 +1513,11 @@ def _build_html_template(
       document.querySelectorAll("#statusFilterPills .pill").forEach(p => {{
         p.classList.toggle("active", p.getAttribute("data-filter") === "all");
       }});
-      document.querySelectorAll("#trackFilterPills .pill").forEach(p => {{
-        p.classList.toggle("active", p.getAttribute("data-track") === "all");
+      document.querySelectorAll("#scoreFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-score") === "all");
+      }});
+      document.querySelectorAll("#workplaceFilterPills .pill").forEach(p => {{
+        p.classList.toggle("active", p.getAttribute("data-workplace") === "all");
       }});
       renderAll();
     }}
@@ -1519,7 +1532,6 @@ def _build_html_template(
       if (!query || !query.trim()) return true;
       const cleanQ = query.trim().toLowerCase();
 
-      // Split by comma (OR clauses)
       const orClauses = cleanQ.split(',').map(s => s.trim()).filter(Boolean);
       if (orClauses.length === 0) return true;
 
@@ -1530,7 +1542,6 @@ def _build_html_template(
         job.location,
         job.region_group,
         job.position_group,
-        job.track === 'TRACK_A' ? 'track a embedded leadership hardware automotive defense' : 'track b quant quantitative developer trading algo aura',
         job.status,
         job.recommendation,
         job.source,
@@ -1538,15 +1549,13 @@ def _build_html_template(
         job.id,
         job.description,
         job.reasoning,
+        job.is_remote ? 'remote' : 'on-site',
         kws
       ].map(v => (v || '').toLowerCase()).join(' ');
 
-      // Must match at least ONE OR clause
       return orClauses.some(orClause => {{
-        // Within each OR clause, split by '+' (AND terms)
         const andTokens = orClause.split('+').map(t => t.trim()).filter(Boolean);
         if (andTokens.length === 0) return true;
-        // Must contain ALL tokens in this AND group
         return andTokens.every(token => searchableText.includes(token));
       }});
     }}
@@ -1560,18 +1569,21 @@ def _build_html_template(
         if (currentFilter === "applied" && j.status !== "APPLIED") return false;
         if (currentFilter === "rejected" && j.status !== "REJECTED") return false;
 
-        // Track filter
-        if (currentTrack === "TRACK_A" && j.track !== "TRACK_A") return false;
-        if (currentTrack === "TRACK_B" && j.track !== "TRACK_B") return false;
+        // Score tier filter
+        const score = (j.score !== null && j.score !== undefined) ? j.score : 0;
+        if (currentScoreTier === "high" && score < 80) return false;
+        if (currentScoreTier === "mid" && (score < 60 || score >= 80)) return false;
+        if (currentScoreTier === "low" && score >= 60) return false;
+
+        // Workplace mode filter
+        if (currentWorkplace === "remote" && !j.is_remote) return false;
+        if (currentWorkplace === "onsite" && j.is_remote) return false;
 
         // Region filter
         if (selectedRegion && j.region_group !== selectedRegion) return false;
 
         // Position filter
         if (selectedPosition && j.position_group !== selectedPosition) return false;
-
-        // Recommendation filter
-        if (selectedRecommendation && j.recommendation !== selectedRecommendation) return false;
 
         // Search query
         if (searchQuery && !matchesSearch(j, searchQuery)) return false;
@@ -1600,37 +1612,47 @@ def _build_html_template(
     }}
 
     function renderAnalytics() {{
-      // 1. Track Breakdown Donut
-      const trackACount = JOBS.filter(j => j.track === "TRACK_A").length;
-      const trackBCount = JOBS.filter(j => j.track === "TRACK_B").length;
+      // 1. Fit Score Breakdown Donut (High 80+, Mid 60-79, Low <60)
+      const highCount = JOBS.filter(j => (j.score || 0) >= 80).length;
+      const midCount = JOBS.filter(j => (j.score || 0) >= 60 && (j.score || 0) < 80).length;
+      const lowCount = JOBS.filter(j => (j.score || 0) < 60).length;
       const total = JOBS.length || 1;
-      const trackAPct = ((trackACount / total) * 100).toFixed(0);
-      const trackBPct = ((trackBCount / total) * 100).toFixed(0);
-      
+
+      const highPct = ((highCount / total) * 100).toFixed(0);
+      const midPct = ((midCount / total) * 100).toFixed(0);
+      const lowPct = ((lowCount / total) * 100).toFixed(0);
+
       const circumference = 2 * Math.PI * 38;
-      const trackAStroke = (trackACount / total) * circumference;
-      const trackBStroke = (trackBCount / total) * circumference;
+      const highStroke = (highCount / total) * circumference;
+      const midStroke = (midCount / total) * circumference;
+      const lowStroke = (lowCount / total) * circumference;
 
       const donutHtml = `
         <svg class="donut-svg" viewBox="0 0 100 100">
           <circle cx="50" cy="50" r="38" fill="transparent" stroke="#e2e8f0" stroke-width="14" />
+          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#059669" stroke-width="14"
+            stroke-dasharray="${{highStroke}} ${{circumference}}" stroke-dashoffset="0" style="transition: stroke-dasharray 0.3s;" />
           <circle cx="50" cy="50" r="38" fill="transparent" stroke="#d97706" stroke-width="14"
-            stroke-dasharray="${{trackAStroke}} ${{circumference}}" stroke-dashoffset="0" style="transition: stroke-dasharray 0.3s;" />
-          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#7c3aed" stroke-width="14"
-            stroke-dasharray="${{trackBStroke}} ${{circumference}}" stroke-dashoffset="-${{trackAStroke}}" style="transition: stroke-dasharray 0.3s;" />
+            stroke-dasharray="${{midStroke}} ${{circumference}}" stroke-dashoffset="-${{highStroke}}" style="transition: stroke-dasharray 0.3s;" />
+          <circle cx="50" cy="50" r="38" fill="transparent" stroke="#94a3b8" stroke-width="14"
+            stroke-dasharray="${{lowStroke}} ${{circumference}}" stroke-dashoffset="-${{highStroke + midStroke}}" style="transition: stroke-dasharray 0.3s;" />
         </svg>
         <div class="donut-legend">
-          <div class="donut-legend-item ${{currentTrack === 'TRACK_A' ? 'active' : ''}}" onclick="setTrackFilter('${{currentTrack === 'TRACK_A' ? 'all' : 'TRACK_A'}}')">
-            <span class="legend-color-dot" style="background: #d97706;"></span>
-            <span>Track A (Embedded): <strong>${{trackACount}}</strong> (${{trackAPct}}%)</span>
+          <div class="donut-legend-item ${{currentScoreTier === 'high' ? 'active' : ''}}" onclick="setScoreTierFilter('${{currentScoreTier === 'high' ? 'all' : 'high'}}')">
+            <span class="legend-color-dot" style="background: #059669;"></span>
+            <span>High Fit (80%+): <strong>${{highCount}}</strong> (${{highPct}}%)</span>
           </div>
-          <div class="donut-legend-item ${{currentTrack === 'TRACK_B' ? 'active' : ''}}" onclick="setTrackFilter('${{currentTrack === 'TRACK_B' ? 'all' : 'TRACK_B'}}')">
-            <span class="legend-color-dot" style="background: #7c3aed;"></span>
-            <span>Track B (Quant): <strong>${{trackBCount}}</strong> (${{trackBPct}}%)</span>
+          <div class="donut-legend-item ${{currentScoreTier === 'mid' ? 'active' : ''}}" onclick="setScoreTierFilter('${{currentScoreTier === 'mid' ? 'all' : 'mid'}}')">
+            <span class="legend-color-dot" style="background: #d97706;"></span>
+            <span>Review (60-79%): <strong>${{midCount}}</strong> (${{midPct}}%)</span>
+          </div>
+          <div class="donut-legend-item ${{currentScoreTier === 'low' ? 'active' : ''}}" onclick="setScoreTierFilter('${{currentScoreTier === 'low' ? 'all' : 'low'}}')">
+            <span class="legend-color-dot" style="background: #94a3b8;"></span>
+            <span>Low / Filtered (&lt;60%): <strong>${{lowCount}}</strong> (${{lowPct}}%)</span>
           </div>
         </div>
       `;
-      document.getElementById("trackDonutContainer").innerHTML = donutHtml;
+      document.getElementById("fitDonutContainer").innerHTML = donutHtml;
 
       // 2. Dynamic Geographical Regions
       const regionCounts = {{}};
@@ -1717,9 +1739,13 @@ def _build_html_template(
       const container = document.getElementById("activeFilterTags");
       const tags = [];
 
-      if (currentTrack !== "all") {{
-        const tLabel = currentTrack === "TRACK_A" ? "Track A (Embedded)" : "Track B (Quant)";
-        tags.push(`<span class="active-filter-tag">🎯 Track: ${{tLabel}} <span class="tag-remove" onclick="setTrackFilter('all')">✕</span></span>`);
+      if (currentScoreTier !== "all") {{
+        const sLabel = currentScoreTier === "high" ? "High Fit (80%+)" : (currentScoreTier === "mid" ? "Review (60-79%)" : "Low Fit (<60%)");
+        tags.push(`<span class="active-filter-tag">⭐ Match: ${{sLabel}} <span class="tag-remove" onclick="setScoreTierFilter('all')">✕</span></span>`);
+      }}
+      if (currentWorkplace !== "all") {{
+        const wLabel = currentWorkplace === "remote" ? "Remote Only" : "On-site / Hybrid";
+        tags.push(`<span class="active-filter-tag">🌐 Mode: ${{wLabel}} <span class="tag-remove" onclick="setWorkplaceFilter('all')">✕</span></span>`);
       }}
       if (selectedRegion) {{
         tags.push(`<span class="active-filter-tag">📍 Region: ${{selectedRegion}} <span class="tag-remove" onclick="setRegionFilter('${{selectedRegion.replace(/'/g, "\\\'")}}')">✕</span></span>`);
@@ -1727,14 +1753,11 @@ def _build_html_template(
       if (selectedPosition) {{
         tags.push(`<span class="active-filter-tag">💼 Role: ${{selectedPosition}} <span class="tag-remove" onclick="setPositionFilter('${{selectedPosition.replace(/'/g, "\\\'")}}')">✕</span></span>`);
       }}
-      if (selectedRecommendation) {{
-        tags.push(`<span class="active-filter-tag">⭐ Recommendation: ${{selectedRecommendation}} <span class="tag-remove" onclick="setRecommendationFilter('${{selectedRecommendation}}')">✕</span></span>`);
-      }}
       if (searchQuery) {{
         tags.push(`<span class="active-filter-tag">🔍 Search: "${{searchQuery}}" <span class="tag-remove" onclick="clearSearch()">✕</span></span>`);
       }}
 
-      if (tags.length > 0 || currentFilter !== "all" || currentTrack !== "all") {{
+      if (tags.length > 0 || currentFilter !== "all" || currentScoreTier !== "all" || currentWorkplace !== "all") {{
         tags.push(`<button class="btn-reset-filters" onclick="resetAllFilters()">Reset All Filters</button>`);
       }}
 
@@ -1746,13 +1769,12 @@ def _build_html_template(
       const filtered = filterJobs(JOBS);
       const sorted = sortJobs(filtered);
 
-      // Render count bar
       const countBar = document.getElementById("resultsCountBar");
       countBar.innerText = `Showing ${{sorted.length}} of ${{JOBS.length}} jobs`;
 
       if (sorted.length === 0) {{
         let helpMsg = "No job listings match the current filters.";
-        if (searchQuery && (currentFilter !== "all" || currentTrack !== "all")) {{
+        if (searchQuery && (currentFilter !== "all" || currentScoreTier !== "all" || currentWorkplace !== "all")) {{
           const allMatches = JOBS.filter(j => matchesSearch(j, searchQuery));
           if (allMatches.length > 0) {{
             helpMsg += ` Found ${{allMatches.length}} match(es) in other categories! <button class="btn btn-primary" style="margin-left: 8px;" onclick="resetAllFilters()">View in All Tabs</button>`;
@@ -1768,10 +1790,6 @@ def _build_html_template(
       }}
 
       grid.innerHTML = sorted.map(j => {{
-        const isTrackA = j.track === "TRACK_A";
-        const trackBadgeClass = isTrackA ? "badge-track-a" : "badge-track-b";
-        const trackLabel = isTrackA ? "Track A (Embedded)" : "Track B (Quant)";
-
         let statusBadgeClass = "badge-discovered";
         if (j.status === "QUEUED") statusBadgeClass = "badge-queued";
         else if (j.status === "EVALUATED") statusBadgeClass = "badge-evaluated";
@@ -1780,48 +1798,42 @@ def _build_html_template(
 
         let scoreBadgeHtml = "";
         if (j.score !== null && j.score !== undefined) {{
-          const sClass = j.score >= 85 ? "score-high" : (j.score >= 70 ? "score-mid" : "score-low");
+          const sClass = j.score >= 80 ? "score-high" : (j.score >= 60 ? "score-mid" : "score-low");
           scoreBadgeHtml = `<span class="score-badge ${{sClass}}">Score: ${{j.score.toFixed(0)}}/100 (${{j.recommendation}})</span>`;
         }}
 
         // Quick action links
         let actionLinks = [];
 
-        // Original URL link
         if (j.url && j.url !== "#") {{
           actionLinks.push(`<a class="btn btn-url" href="${{j.url}}" target="_blank" rel="noopener noreferrer">🔗 Open Job URL</a>`);
         }}
 
-        // Folder link (strictly relative)
         if (j.folder_rel_path) {{
           actionLinks.push(`<a class="btn btn-folder" href="${{j.folder_rel_path}}/" target="_blank">📁 Staged Folder</a>`);
         }}
 
-        // Resume PDF
         if (j.resume_pdf_rel) {{
           actionLinks.push(`<a class="btn btn-primary" href="${{j.resume_pdf_rel}}" target="_blank">📄 Resume PDF</a>`);
         }}
 
-        // Cover Letter PDF
         if (j.cover_pdf_rel) {{
           actionLinks.push(`<a class="btn btn-primary" href="${{j.cover_pdf_rel}}" target="_blank">✉️ Cover Letter PDF</a>`);
         }}
 
-        // Details MD
         if (j.details_md_rel) {{
           actionLinks.push(`<a class="btn" href="${{j.details_md_rel}}" target="_blank">📋 Job Details MD</a>`);
         }}
 
-        // If not staged, provide Force Stage Command button
         if (!j.folder_rel_path) {{
           actionLinks.push(`<button class="btn btn-stage" onclick="copyToClipboard('python run.py stage ${{j.short_id}}', 'Copied: python run.py stage ${{j.short_id}}')">⚡ Copy Stage Cmd</button>`);
         }}
 
-        // Approve Command Button
         actionLinks.push(`<button class="btn btn-approve" onclick="copyToClipboard('python run.py approve ${{j.short_id}}', 'Copied: python run.py approve ${{j.short_id}}')">✓ Copy Approve Cmd</button>`);
-
-        // Reject Command Button
         actionLinks.push(`<button class="btn btn-reject" onclick="copyToClipboard('python run.py reject ${{j.short_id}}', 'Copied: python run.py reject ${{j.short_id}}')">✗ Copy Reject Cmd</button>`);
+
+        const remoteBadgeHtml = j.is_remote ? `<span class="badge badge-remote">🌐 Remote</span>` : '';
+        const sourceBadgeHtml = j.source ? `<span class="badge badge-source">${{j.source}}</span>` : '';
 
         return `
           <div class="job-card" id="job-${{j.short_id}}">
@@ -1838,7 +1850,8 @@ def _build_html_template(
                 </div>
               </div>
               <div class="badges">
-                <span class="badge ${{trackBadgeClass}}">${{trackLabel}}</span>
+                ${{remoteBadgeHtml}}
+                ${{sourceBadgeHtml}}
                 <span class="badge ${{statusBadgeClass}}">${{j.status}}</span>
                 ${{scoreBadgeHtml}}
               </div>
@@ -1871,7 +1884,6 @@ def _build_html_template(
       renderJobs();
     }}
 
-    // Setup input search listener
     const sInput = document.getElementById("searchInput");
     const clearBtn = document.getElementById("searchClearBtn");
 
@@ -1894,7 +1906,6 @@ def _build_html_template(
       document.getElementById("hireModal").classList.remove("show");
     }}
 
-    // Initial render
     renderAll();
   </script>
 
