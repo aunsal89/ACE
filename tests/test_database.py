@@ -46,7 +46,7 @@ class TestDatabase(unittest.TestCase):
             title="Lead Embedded Engineer",
             company="Baykar",
             location="Istanbul",
-            assigned_track=TrackType.TRACK_A,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             description_raw="Developing EV powertrain ECU algorithms in Simulink."
         )
@@ -68,7 +68,7 @@ class TestDatabase(unittest.TestCase):
             title="Quant Developer",
             company="Citadel",
             location="London",
-            assigned_track=TrackType.TRACK_B,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED
         )
         job, _ = self.repo.upsert_job(job_in)
@@ -97,7 +97,7 @@ class TestDatabase(unittest.TestCase):
             title="Head of Embedded Software",
             company="Aselsan",
             location="Ankara",
-            assigned_track=TrackType.TRACK_A,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED
         )
         job, _ = self.repo.upsert_job(job_in)
@@ -105,7 +105,7 @@ class TestDatabase(unittest.TestCase):
         eval_in = ScoringEvaluationCreate(
             job_id=job.id,
             tenant_id="aunsal",
-            track="TRACK_A",
+            track="GENERAL",
             overall_score=94.5,
             comp_score=90.0,
             location_score=100.0,

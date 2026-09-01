@@ -21,8 +21,7 @@ from src.database.models import (
     ScoringEvaluation,
     ScoringEvaluationCreate,
     TenantDBRecord,
-    TrackType,
-)
+    )
 from src.utils.hashing import (
     generate_deduplication_hash,
     generate_semantic_cluster_key,
@@ -164,7 +163,7 @@ class JobRepository:
                     job_in.salary_max,
                     job_in.salary_currency,
                     job_in.salary_period,
-                    job_in.assigned_track.value,
+                    job_in.assigned_track.value if hasattr(job_in.assigned_track, "value") else str(job_in.assigned_track or "GENERAL"),
                     job_in.status.value,
                     job_in.raw_metadata_json,
                 )
@@ -191,10 +190,10 @@ class JobRepository:
     def list_jobs(
         self,
         status: Optional[JobStatus] = None,
-        track: Optional[TrackType] = None,
         source: Optional[str] = None,
         limit: int = 50,
-        offset: int = 0
+        offset: int = 0,
+        track: Optional[Any] = None,
     ) -> List[JobListing]:
         """Query job listings with flexible filtering and pagination."""
         query = "SELECT * FROM job_listings WHERE 1=1"
@@ -202,10 +201,10 @@ class JobRepository:
 
         if status:
             query += " AND status = ?"
-            params.append(status.value)
+            params.append(status.value if hasattr(status, "value") else str(status))
         if track:
             query += " AND assigned_track = ?"
-            params.append(track.value)
+            params.append(track.value if hasattr(track, "value") else str(track))
         if source:
             query += " AND source = ?"
             params.append(source)
@@ -292,7 +291,7 @@ class JobRepository:
                     eval_id,
                     eval_in.job_id,
                     eval_in.tenant_id,
-                    eval_in.track,
+                    eval_in.track or "GENERAL",
                     eval_in.overall_score,
                     eval_in.comp_score,
                     eval_in.location_score,
@@ -341,7 +340,7 @@ class JobRepository:
                     pkg_id,
                     pkg_in.job_id,
                     pkg_in.tenant_id,
-                    pkg_in.track,
+                    pkg_in.track or "GENERAL",
                     pkg_in.resume_md_path,
                     pkg_in.resume_pdf_path,
                     pkg_in.cover_letter_md_path,
@@ -404,9 +403,6 @@ class JobRepository:
             cursor.execute("SELECT status, COUNT(*) as count FROM job_listings GROUP BY status;")
             status_counts = {r["status"]: r["count"] for r in cursor.fetchall()}
 
-            cursor.execute("SELECT assigned_track, COUNT(*) as count FROM job_listings GROUP BY assigned_track;")
-            track_counts = {r["assigned_track"]: r["count"] for r in cursor.fetchall()}
-
             cursor.execute("SELECT source, COUNT(*) as count FROM job_listings GROUP BY source;")
             source_counts = {r["source"]: r["count"] for r in cursor.fetchall()}
 
@@ -416,7 +412,6 @@ class JobRepository:
             return {
                 "total_jobs": total_jobs,
                 "status_breakdown": status_counts,
-                "track_breakdown": track_counts,
                 "source_breakdown": source_counts,
                 "total_packages": packages_count,
             }
@@ -448,7 +443,7 @@ class JobRepository:
             salary_max=row["salary_max"],
             salary_currency=row["salary_currency"],
             salary_period=row["salary_period"],
-            assigned_track=TrackType(row["assigned_track"]),
+            assigned_track=str(row["assigned_track"] if "assigned_track" in row.keys() and row["assigned_track"] else "GENERAL"),
             status=JobStatus(row["status"]),
             raw_metadata_json=row["raw_metadata_json"],
             discovered_at=datetime.fromisoformat(row["discovered_at"]) if isinstance(row["discovered_at"], str) else row["discovered_at"],
@@ -461,7 +456,7 @@ class JobRepository:
             id=row["id"],
             job_id=row["job_id"],
             tenant_id=row["tenant_id"],
-            track=row["track"],
+            track=str(row["track"] if "track" in row.keys() and row["track"] else "GENERAL"),
             overall_score=row["overall_score"],
             comp_score=row["comp_score"],
             location_score=row["location_score"],
@@ -482,7 +477,7 @@ class JobRepository:
             id=row["id"],
             job_id=row["job_id"],
             tenant_id=row["tenant_id"],
-            track=row["track"],
+            track=str(row["track"] if "track" in row.keys() and row["track"] else "GENERAL"),
             resume_md_path=row["resume_md_path"],
             resume_pdf_path=row["resume_pdf_path"],
             cover_letter_md_path=row["cover_letter_md_path"],

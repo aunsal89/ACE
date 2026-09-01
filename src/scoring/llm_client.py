@@ -18,7 +18,7 @@ from src.utils.logger import logger
 
 class OpportunityEvaluationSchema(BaseModel):
     """Schema for LLM opportunity scoring."""
-    track: str = "TRACK_A"
+    track: Optional[str] = "GENERAL"
     overall_score: float = 70.0
     comp_score: float = 0.0
     location_score: float = 0.0
@@ -37,11 +37,7 @@ class OpportunityEvaluationSchema(BaseModel):
             return data
 
         # 1. Normalize track
-        raw_track = str(data.get("track") or data.get("assigned_track") or data.get("target_track") or "TRACK_A").upper()
-        if "B" in raw_track or "SECONDARY" in raw_track or "QUANT" in raw_track:
-            data["track"] = "TRACK_B"
-        else:
-            data["track"] = "TRACK_A"
+        data["track"] = str(data.get("track") or "GENERAL")
 
         # 2. Normalize overall_score
         score_val = (
@@ -210,33 +206,19 @@ class LLMScoringClient:
         return OpportunityEvaluationSchema.model_validate(res)
 
     def _build_tenant_prompt_context(self) -> str:
-        """Construct candidate context string from tenant profile and sources of truth."""
         t = self.tenant
-        ta = t.tracks.track_a
-        tb = t.tracks.track_b
+        p = t.preferences
 
         lines = [
             f"Candidate Name: {t.name}",
             f"Current Location: {t.location_current}",
-            f"Primary Target Track: {ta.name}",
-            f"- Target Titles: {', '.join(ta.target_titles)}",
-            f"- Target Locations: {', '.join(ta.target_locations)}",
-            f"- Min Compensation: ${ta.compensation.min_monthly_net_usd:,.0f}/month {ta.compensation.currency}",
-            f"- Core Competencies: {', '.join(ta.core_competencies)}",
-            f"- Exclusions: {', '.join(ta.exclusions)}",
+            f"Target Roles/Titles: {', '.join(p.target_titles)}",
+            f"Target Locations: {', '.join(p.target_locations)}",
+            f"Min Compensation: ${p.compensation.min_monthly_net_usd:,.0f}/month {p.compensation.currency}",
+            f"Core Competencies: {', '.join(p.core_competencies)}",
+            f"Exclusions: {', '.join(p.exclusions)}",
         ]
 
-        if tb.enabled:
-            lines.extend([
-                f"Secondary Target Track: {tb.name}",
-                f"- Target Titles: {', '.join(tb.target_titles)}",
-                f"- Target Regions: {', '.join(tb.target_regions)}",
-                f"- Target Cities: {', '.join(tb.target_cities)}",
-                f"- Excluded Regions: {', '.join(tb.excluded_regions)}",
-                f"- Core Competencies: {', '.join(tb.core_competencies)}",
-            ])
-
-        # Add snippet of CV if available
         cv_path = t.sources_of_truth.cv_markdown
         if cv_path and cv_path.exists():
             cv_text = cv_path.read_text(encoding="utf-8", errors="replace")
@@ -252,7 +234,6 @@ class LLMScoringClient:
         return "\n".join(lines)
 
     def _evaluate_deterministic(self, job: JobListing) -> Dict[str, Any]:
-        """Hard rule-based heuristic evaluator when API calls are unavailable."""
         title_desc = f"{job.title} {job.description_raw or ''}".lower()
         company_loc = f"{job.company} {job.location or ''}".lower()
 
@@ -299,6 +280,10 @@ class LLMScoringClient:
                 "model_used": "rule_engine_deterministic"
             }
 
+        if exclusions_hit or not loc_match:
+            fits = False
+            overall = 30.0 if not loc_match else 35.0
+            rec = "REJECT"
         else:
             tb = self.tenant.tracks.track_b
             matched_kws = [k for k in tb.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
@@ -349,7 +334,6 @@ Description: {job.description_raw}
 
 Return ONLY valid JSON matching this schema:
 {{
-  "track": "TRACK_A" or "TRACK_B",
   "overall_score": float between 0 and 100,
   "comp_score": float between 0 and 100,
   "location_score": float between 0 and 100,
@@ -385,7 +369,7 @@ Return ONLY valid JSON matching this schema:
         system_prompt = (
             f"You are an executive career evaluation AI assessing job opportunities for {self.tenant.name}.\n"
             f"{candidate_context}\n\n"
-            "Return ONLY a JSON object with keys: track, overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
+            "Return ONLY a JSON object with keys: overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
         )
 
         user_content = (
@@ -395,7 +379,7 @@ Return ONLY valid JSON matching this schema:
             f"Location: {job.location or 'N/A'}\n"
             f"Description: {job.description_raw or 'N/A'}\n\n"
             f"Return ONLY valid JSON matching schema:\n"
-            f'{{"track": "TRACK_A", "overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
+            f'{{"overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
             f'"tech_stack_score": 90.0, "leadership_score": 90.0, "fits_criteria": true, '
             f'"matched_keywords": ["keyword1"], "missing_keywords": [], '
             f'"reasoning": "rationale", "recommendation": "QUEUE"}}'
@@ -417,6 +401,10 @@ Return ONLY valid JSON matching this schema:
 
     def _evaluate_with_openai(self, job: JobListing) -> Optional[Dict[str, Any]]:
         return None
+
+
+# Alias for backward compatibility
+ScoringLLMClient = LLMScoringClient
 
 
 # Alias for backward compatibility

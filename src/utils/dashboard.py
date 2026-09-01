@@ -118,17 +118,15 @@ def generate_inbox_dashboard(
     packages = repo.get_application_packages()
     pkgs_by_job_id = {p.job_id: p for p in packages}
 
-    # Also scan disk for any staged folders under track_*
+    # Also scan disk for any staged folders under inbox_dir
     disk_folders_by_job_id: Dict[str, Path] = {}
-    for track_folder in inbox_dir.glob("track_*"):
-        if track_folder.is_dir():
-            for item in track_folder.rglob("*"):
-                if item.is_dir():
-                    parts = item.name.split("_")
-                    if parts:
-                        short_id = parts[-1]
-                        if len(short_id) == 8:
-                            disk_folders_by_job_id[short_id] = item
+    for item in inbox_dir.rglob("*"):
+        if item.is_dir():
+            parts = item.name.split("_")
+            if parts:
+                short_id = parts[-1]
+                if len(short_id) == 8:
+                    disk_folders_by_job_id[short_id] = item
 
     job_cards_data: List[Dict[str, Any]] = []
 
@@ -188,6 +186,8 @@ def generate_inbox_dashboard(
         region_group = normalize_region_group(job.location, job.is_remote)
         pos_group = normalize_position_group(job.title)
 
+        job_track = job.assigned_track.value if hasattr(job.assigned_track, "value") else str(job.assigned_track or "GENERAL")
+
         job_cards_data.append({
             "id": job.id,
             "short_id": job.id[:8],
@@ -197,7 +197,7 @@ def generate_inbox_dashboard(
             "region_group": region_group,
             "position_group": pos_group,
             "is_remote": job.is_remote,
-            "track": job.assigned_track.value,
+            "track": job_track,
             "status": job.status.value,
             "source": job.source,
             "url": job.url or "#",

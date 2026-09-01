@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from bs4 import BeautifulSoup
 
 from src.config import SourcingSettings, TenantProfile
-from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.database.models import JobListingCreate, JobStatus
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
 from src.utils.http import request_with_retry
@@ -281,15 +281,6 @@ class GmailLinkedInScraper(BaseScraper):
             or "hybrid" in title.lower()
         )
 
-        # Classify Track A vs Track B
-        t_low = f"{title} {cleaned_desc}".lower()
-        if any(k in t_low for k in ["quant", "trading", "algorithmic", "hft", "execution strategy"]):
-            track = TrackType.TRACK_B
-        elif any(k in t_low for k in ["embedded", "mbd", "simulink", "autosar", "powertrain", "foc", "motor control", "ecu", "bms"]):
-            track = TrackType.TRACK_A
-        else:
-            track = TrackType.TRACK_A if self.tenant.tracks.track_a.enabled else TrackType.TRACK_B
-
         dedup_hash = generate_deduplication_hash(
             company=company,
             title=title,
@@ -312,7 +303,7 @@ class GmailLinkedInScraper(BaseScraper):
             description_raw=raw_desc,
             description_cleaned=cleaned_desc.strip(),
             salary_raw=raw_data.get("salary", None),
-            assigned_track=track,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=f"email_date={raw_data.get('email_date', '')};subject={raw_data.get('email_subject', '')}",
         )

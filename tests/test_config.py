@@ -47,8 +47,10 @@ class TestConfig(unittest.TestCase):
             self.assertEqual(tenant.tenant_id, "jane_doe")
             self.assertEqual(tenant.name, "Jane Doe")
             self.assertEqual(tenant.email, "jane.doe@example.com")
+            self.assertEqual(tenant.preferences.compensation.min_monthly_net_usd, 8500.0)
+            self.assertIn("Lead Systems Engineer", tenant.preferences.target_titles)
+            # Verify backward-compatibility wrapper
             self.assertEqual(tenant.tracks.track_a.compensation.min_monthly_net_usd, 8500.0)
-            self.assertIn("Lead Systems Engineer", tenant.tracks.track_a.target_titles)
 
             # Check listing
             tenants = mgr.list_available_tenants()
@@ -57,6 +59,7 @@ class TestConfig(unittest.TestCase):
             # Check loading
             loaded = mgr.get_tenant("jane_doe")
             self.assertEqual(loaded.name, "Jane Doe")
+            self.assertEqual(loaded.preferences.target_titles[0], "Lead Systems Engineer")
 
 
 if __name__ == "__main__":

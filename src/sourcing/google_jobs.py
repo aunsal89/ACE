@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from src.config import SourcingSettings, TenantProfile
-from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.database.models import JobListingCreate, JobStatus
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash, normalize_company, normalize_title
 from src.utils.http import request_with_retry
@@ -24,26 +24,18 @@ class GoogleJobsScraper(BaseScraper):
         self.endpoint = "https://serpapi.com/search.json"
 
     def build_search_queries(self) -> List[Dict[str, Any]]:
-        """Construct high-intent consolidated search queries based on Track A and Track B tenant criteria."""
+        """Construct high-intent consolidated search queries based on candidate preferences."""
         queries = []
+        titles = self.tenant.preferences.target_titles or ["Software Engineer"]
+        locations = self.tenant.preferences.target_locations or ["Remote"]
 
-        # Track A: Embedded Software Leadership (Turkey)
-        if self.tenant.tracks.track_a.enabled:
-            queries.append({
-                "q": "Embedded Software (Director OR Manager OR Lead OR Architect)",
-                "location": "Turkey",
-                "track": TrackType.TRACK_A,
-            })
-
-        # Track B: Quant Developer / Algorithmic Trading (Europe / Remote)
-        if self.tenant.tracks.track_b.enabled:
-            queries.append({
-                "q": "Quantitative Developer OR Algorithmic Trading",
-                "location": "London, United Kingdom",
-                "track": TrackType.TRACK_B,
-            })
-
-        return queries
+        for title in titles[:3]:
+            for loc in locations[:2]:
+                queries.append({
+                    "q": title,
+                    "location": loc,
+                })
+        return queries or [{"q": "Software Engineer", "location": "Remote"}]
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
         """Fetch listings from SerpApi. If API key is not present or queries fail, returns realistic mock fixtures."""
@@ -78,7 +70,6 @@ class GoogleJobsScraper(BaseScraper):
                     data = resp.json()
                     results = data.get("jobs_results", [])
                     for item in results:
-                        item["_target_track"] = q_spec["track"]
                         all_listings.append(item)
                 else:
                     warning_msg = f"SerpApi query '{q_spec['q']}' returned HTTP {resp.status_code}"
@@ -127,11 +118,6 @@ class GoogleJobsScraper(BaseScraper):
             or detected_extensions.get("work_from_home", False)
         )
 
-        # Track assignment
-        track = raw_data.get("_target_track", TrackType.UNASSIGNED)
-        if track == TrackType.UNASSIGNED:
-            track = self._classify_track(title, description)
-
         dedup_hash = generate_deduplication_hash(
             company=company,
             title=title,
@@ -157,7 +143,7 @@ class GoogleJobsScraper(BaseScraper):
             salary_min=salary_min,
             salary_max=salary_max,
             salary_currency=salary_currency,
-            assigned_track=track,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=str(raw_data.get("job_id", ""))
         )
@@ -173,18 +159,6 @@ class GoogleJobsScraper(BaseScraper):
             return nums[0], nums[0], currency
         return min(nums), max(nums), currency
 
-    def _classify_track(self, title: str, desc: str) -> TrackType:
-        t_low = f"{title} {desc}".lower()
-        has_a = any(k in t_low for k in ["embedded", "mbd", "simulink", "autosar", "pmsm", "motor control", "powertrain", "ecu", "iso 26262"])
-        has_b = any(k in t_low for k in ["quant", "algorithmic trading", "execution", "hft", "ccxt", "backtest", "orderbook"])
-        if has_a and has_b:
-            return TrackType.BOTH
-        if has_a:
-            return TrackType.TRACK_A
-        if has_b:
-            return TrackType.TRACK_B
-        return TrackType.UNASSIGNED
-
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
         return [
             {
@@ -199,7 +173,6 @@ class GoogleJobsScraper(BaseScraper):
                     "schedule_type": "Full-time",
                     "work_from_home": True
                 },
-                "_target_track": TrackType.TRACK_B
             },
             {
                 "job_id": "gj_emb_ist_02",
@@ -213,7 +186,6 @@ class GoogleJobsScraper(BaseScraper):
                     "schedule_type": "Full-time",
                     "work_from_home": False
                 },
-                "_target_track": TrackType.TRACK_A
             },
             {
                 "job_id": "gj_quant_sg_03",
@@ -227,6 +199,5 @@ class GoogleJobsScraper(BaseScraper):
                     "schedule_type": "Full-time",
                     "work_from_home": True
                 },
-                "_target_track": TrackType.TRACK_B
             }
         ]

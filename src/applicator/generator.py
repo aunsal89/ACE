@@ -54,13 +54,12 @@ class ApplicationGenerator(BaseApplicator):
 
     def generate_package(self, job: JobListing, evaluation: ScoringEvaluation) -> ApplicationPackageCreate:
         """Generate tailored Resume.md, Cover_Letter.md, LinkedIn_Guidance.md, Job_Details.md, and PDFs."""
-        track = evaluation.track
-        track_folder = "track_a_primary" if track == "TRACK_A" else "track_b_secondary"
+        track = "GENERAL"
         date_folder = datetime.now().strftime("%Y-%m-%d")
 
         comp_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.company).strip("_").lower()
         job_slug = re.sub(r"[^a-zA-Z0-9]", "_", job.title[:20]).strip("_").lower()
-        package_dir = self.inbox_dir / self.tenant.tenant_id / track_folder / date_folder / f"{comp_slug}_{job_slug}_{job.id[:8]}"
+        package_dir = self.inbox_dir / self.tenant.tenant_id / date_folder / f"{comp_slug}_{job_slug}_{job.id[:8]}"
         package_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Draft Tailored Resume Markdown (with Experience and Education)
@@ -107,7 +106,7 @@ class ApplicationGenerator(BaseApplicator):
     def _draft_tailored_resume(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Synthesize tailored executive CV matching JD priorities including Education at the end."""
         t = self.tenant
-        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
+        prefs = t.preferences
 
         # Collect contact links
         links_parts = []
@@ -161,9 +160,10 @@ class ApplicationGenerator(BaseApplicator):
     def _draft_cover_letter(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Draft tailored, comprehensive, metric-driven executive cover letter."""
         t = self.tenant
-        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
-        skills = ", ".join(track_profile.core_competencies[:6]) if track_profile.core_competencies else "system design, technical leadership, and engineering rigor"
-        years_exp = getattr(track_profile.experience_requirements, "min_total_years", 5)
+        prefs = t.preferences
+        skills = ", ".join(prefs.core_competencies[:6]) if prefs.core_competencies else "system design, technical leadership, and engineering rigor"
+        exp_reqs = getattr(prefs, "experience_requirements", None)
+        years_exp = getattr(exp_reqs, "min_total_years", 5) if exp_reqs else 5
 
         body = (
             f"I am writing to express my enthusiastic interest in the **{job.title}** position at **{job.company}**.\n\n"
@@ -198,6 +198,7 @@ Sincerely,
     def _draft_job_details(self, job: JobListing, evaluation: ScoringEvaluation, comp_slug: str) -> str:
         """Create a comprehensive Job_Details.md containing metadata, URLs, review commands, and evaluation notes."""
         t = self.tenant
+        assigned_track_str = job.assigned_track.value if hasattr(job.assigned_track, "value") else str(job.assigned_track or "GENERAL")
         return f"""# Job Overview & Review Actions: {job.title}
 
 ## Target Organization & Metadata
@@ -206,7 +207,7 @@ Sincerely,
 * **Location:** {job.location or 'Not specified'} {'(Remote)' if job.is_remote else ''}
 * **Source:** {job.source}
 * **Discovered At:** {job.discovered_at.strftime('%Y-%m-%d %H:%M:%S') if job.discovered_at else 'N/A'}
-* **Assigned Track:** {job.assigned_track.value}
+* **Assigned Track:** {assigned_track_str}
 * **Original Job Posting URL:** [{job.url or 'Link'}]({job.url or '#'})
 
 ---
@@ -254,9 +255,9 @@ python run.py reject {job.id[:8]}
     def _draft_linkedin_guidance(self, job: JobListing, evaluation: ScoringEvaluation) -> str:
         """Step-by-step guidance for manual LinkedIn updates."""
         t = self.tenant
-        track_profile = t.tracks.track_a if evaluation.track == "TRACK_A" else t.tracks.track_b
-        headline = f"{job.title} | {track_profile.name} | High-Impact Systems Architecture"
-        keywords = ", ".join(track_profile.core_competencies[:8]) if track_profile.core_competencies else "Software Architecture, Systems Engineering, Technical Leadership"
+        prefs = t.preferences
+        headline = f"{job.title} | {t.name} | Systems Architecture & Engineering"
+        keywords = ", ".join(prefs.core_competencies[:8]) if prefs.core_competencies else "Software Architecture, Systems Engineering, Technical Leadership"
 
         return f"""# LinkedIn Guidance & Keyword Optimization for {job.company}
 
@@ -267,7 +268,7 @@ python run.py reject {job.id[:8]}
 - {keywords}
 
 ### 3. Tailored Connection Note / InMail Copy:
-"Hello, I noticed {job.company}'s open role for {job.title}. With my background in {track_profile.name}, I would welcome the chance to connect and discuss how my experience aligns with your engineering goals."
+"Hello, I noticed {job.company}'s open role for {job.title}. With my engineering background, I would welcome the chance to connect and discuss how my experience aligns with your engineering goals."
 """
 
     def draft_queued_jobs(self, job_id: Optional[str] = None) -> List[ApplicationPackage]:
@@ -308,7 +309,7 @@ python run.py reject {job.id[:8]}
                 f"[bold]Cover Letter PDF:[/bold] {pkg.cover_letter_pdf_path}\n"
                 f"[bold]Job Details:[/bold] {Path(pkg.resume_md_path).parent / 'Job_Details.md'}\n"
                 f"[bold]LinkedIn Guidance:[/bold] {pkg.linkedin_prompt_path}",
-                title=f"Staged Application ({pkg.track})",
+                title=f"Staged Application - {j.company}",
                 border_style="green"
             ))
 

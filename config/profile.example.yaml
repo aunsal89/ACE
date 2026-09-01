@@ -19,70 +19,42 @@ sources_of_truth:
   education_markdown: "sources/Education.md"
   skills_toolbox: "sources/Toolbox.md"
 
-# Target Career Tracks & Preferences
-tracks:
-  track_a:
-    name: "Software Engineering Leadership & Systems Architecture"
-    enabled: true
-    target_titles:
-      - "Head of Software Engineering"
-      - "Principal Software Architect"
-      - "Director of Engineering"
-      - "Staff Software Engineer"
-      - "Engineering Manager"
-    target_sectors:
-      - "Distributed Systems"
-      - "Cloud Infrastructure"
-      - "FinTech / High Throughput"
-      - "Autonomous & Robotics Systems"
-    target_locations:
-      - "London, United Kingdom"
-      - "Remote"
-    compensation:
-      min_monthly_net_usd: 7500.0
-      currency: "USD"
-      period: "monthly"
-      type: "net"
-    experience_requirements:
-      min_total_years: 10
-      min_leadership_years: 4
-      max_team_size_managed: 20
-    core_competencies:
-      - "System Architecture & High-Scale Microservices"
-      - "Python, Go, C++, or Rust"
-      - "Distributed Databases & Streaming (Kafka, Redis, PostgreSQL)"
-      - "CI/CD, Kubernetes, Cloud Infrastructure (AWS/GCP)"
-      - "Engineering Team Leadership & Mentorship"
-    exclusions:
-      - "Junior Developer"
-      - "Intern / Trainee"
-      - "Non-technical Project Coordinator"
-      - "Pure QA / Manual Tester"
-
-  track_b:
-    name: "Quantitative Engineering & Algorithmic Trading"
-    enabled: true
-    target_titles:
-      - "Quantitative Developer"
-      - "Algorithmic Trading Engineer"
-      - "Quant Software Engineer"
-      - "Low-Latency Execution Developer"
-    target_regions:
-      - "Europe"
-      - "APAC"
-      - "Remote"
-    target_cities:
-      - "London"
-      - "Zurich"
-      - "Amsterdam"
-      - "Singapore"
-    excluded_regions:
-      - "United States"
-    core_competencies:
-      - "High-Performance Python (AsyncIO, NumPy, pandas) & C++"
-      - "Algorithmic Strategy Execution & Backtesting"
-      - "Low-Latency APIs & WebSocket Connectivity"
-      - "Statistical Modeling & Multi-Regime Volatility Analysis"
+# Target Career Preferences & Requirements
+preferences:
+  target_titles:
+    - "Head of Software Engineering"
+    - "Principal Software Architect"
+    - "Director of Engineering"
+    - "Staff Software Engineer"
+    - "Engineering Manager"
+  target_sectors:
+    - "Distributed Systems"
+    - "Cloud Infrastructure"
+    - "FinTech / High Throughput"
+    - "Autonomous & Robotics Systems"
+  target_locations:
+    - "London, United Kingdom"
+    - "Remote"
+  compensation:
+    min_monthly_net_usd: 7500.0
+    currency: "USD"
+    period: "monthly"
+    type: "net"
+  experience_requirements:
+    min_total_years: 10
+    min_leadership_years: 4
+    max_team_size_managed: 20
+  core_competencies:
+    - "System Architecture & High-Scale Microservices"
+    - "Python, Go, C++, or Rust"
+    - "Distributed Databases & Streaming (Kafka, Redis, PostgreSQL)"
+    - "CI/CD, Kubernetes, Cloud Infrastructure (AWS/GCP)"
+    - "Engineering Team Leadership & Mentorship"
+  exclusions:
+    - "Junior Developer"
+    - "Intern / Trainee"
+    - "Non-technical Project Coordinator"
+    - "Pure QA / Manual Tester"
 
 generation_preferences:
   tailored_cv_format: "markdown_and_pdf"

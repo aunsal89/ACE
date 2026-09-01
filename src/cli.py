@@ -362,7 +362,7 @@ def cmd_tenant(args: argparse.Namespace) -> None:
         for tid in tenants:
             t = mgr.get_tenant(tid)
             is_active = "[bold green]★ ACTIVE[/bold green]" if tid == config.multi_tenancy.active_tenant else ""
-            titles = ", ".join(t.tracks.track_a.target_titles[:2]) if t.tracks.track_a.target_titles else "General"
+            titles = ", ".join(t.preferences.target_titles[:2]) if t.preferences.target_titles else "General"
             table.add_row(is_active, tid, t.name, t.email, t.location_current, titles)
 
         console.print(table)
@@ -389,18 +389,19 @@ def cmd_tenant(args: argparse.Namespace) -> None:
 
     elif action == "show":
         tenant = _ensure_active_tenant(config, requested_id=getattr(args, "target_tenant_id", None))
-        ta = tenant.tracks.track_a
-        tb = tenant.tracks.track_b
+        p = tenant.preferences
 
         console.print(Panel(
             f"[bold green]Candidate:[/bold green] {tenant.name} ([cyan]{tenant.tenant_id}[/cyan])\n"
             f"[bold]Email:[/bold] {tenant.email} | [bold]Phone:[/bold] {tenant.phone or 'N/A'}\n"
             f"[bold]Current Location:[/bold] {tenant.location_current}\n"
             f"[bold]Website:[/bold] {tenant.links.website or 'N/A'} | [bold]LinkedIn:[/bold] {tenant.links.linkedin or 'N/A'}\n\n"
-            f"[bold yellow]Primary Track ({ta.name}):[/bold yellow]\n"
-            f"• Target Titles: {', '.join(ta.target_titles)}\n"
-            f"• Target Locations: {', '.join(ta.target_locations)}\n"
-            f"• Min Compensation: ${ta.compensation.min_monthly_net_usd:,.0f}/mo\n"
+            f"[bold yellow]Candidate Preferences & Target Requirements:[/bold yellow]\n"
+            f"• Target Titles: {', '.join(p.target_titles)}\n"
+            f"• Target Locations: {', '.join(p.target_locations)}\n"
+            f"• Min Compensation: ${p.compensation.min_monthly_net_usd:,.0f}/mo {p.compensation.currency}\n"
+            f"• Core Competencies: {', '.join(p.core_competencies) if p.core_competencies else 'N/A'}\n"
+            f"• Exclusions: {', '.join(p.exclusions) if p.exclusions else 'None'}\n"
             f"• CV Markdown: {tenant.sources_of_truth.cv_markdown}",
             title=f"Tenant Profile: {tenant.name}",
             border_style="green"
@@ -459,7 +460,7 @@ def cmd_list_jobs(args: argparse.Namespace) -> None:
     config = load_engine_config()
     repo = JobRepository(config.database.db_path)
     status_filter = JobStatus(args.status) if args.status else None
-    track_filter = TrackType(args.track) if args.track else None
+    track_filter = getattr(args, "track", None)
 
     jobs = repo.list_jobs(status=status_filter, track=track_filter, limit=args.limit)
 
@@ -472,7 +473,7 @@ def cmd_list_jobs(args: argparse.Namespace) -> None:
     table.add_column("Title", style="bold")
     table.add_column("Company", style="green")
     table.add_column("Location", style="dim")
-    table.add_column("Track", style="yellow")
+    table.add_column("Source", style="yellow")
     table.add_column("Status", style="bold")
 
     for j in jobs:
@@ -482,7 +483,7 @@ def cmd_list_jobs(args: argparse.Namespace) -> None:
             j.title[:30],
             j.company[:20],
             (j.location or "N/A")[:18],
-            j.assigned_track.value,
+            j.source,
             f"[{status_color}]{j.status.value}[/{status_color}]"
         )
 
@@ -525,18 +526,18 @@ def cmd_list_inbox(args: argparse.Namespace) -> None:
 
     table = Table(title="Staged Application Packages in /inbox/", show_header=True, header_style="bold green")
     table.add_column("Job ID", style="dim")
-    table.add_column("Track", style="yellow")
     table.add_column("Status", style="bold")
     table.add_column("Resume PDF", style="cyan")
     table.add_column("Cover Letter PDF", style="cyan")
+    table.add_column("Notes", style="dim")
 
     for p in pkgs:
         table.add_row(
             p.job_id[:8],
-            p.track,
             p.status.value,
             Path(p.resume_pdf_path or "").name,
-            Path(p.cover_letter_pdf_path or "").name
+            Path(p.cover_letter_pdf_path or "").name,
+            (p.notes or "")[:35]
         )
 
     console.print(table)

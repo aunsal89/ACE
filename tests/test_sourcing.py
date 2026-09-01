@@ -11,7 +11,7 @@ if str(root) not in sys.path:
     sys.path.insert(0, str(root))
 
 from src.config import load_engine_config, TenantManager
-from src.database.models import TrackType
+
 from src.database.repository import JobRepository
 from src.sourcing.google_jobs import GoogleJobsScraper
 from src.sourcing.gmail_linkedin import GmailLinkedInScraper
@@ -57,7 +57,7 @@ class TestSourcing(unittest.TestCase):
             for j in jobs:
                 self.assertEqual(j.source, "google_jobs")
                 self.assertTrue(len(j.deduplication_hash) == 64)
-                self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
+                self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
 
     def test_gmail_linkedin_scraper(self):
         scraper = GmailLinkedInScraper(self.config.sourcing, self.tenant, imap_user="mock@gmail.com", imap_password="mock_password")
@@ -67,7 +67,7 @@ class TestSourcing(unittest.TestCase):
             for j in jobs:
                 self.assertEqual(j.source, "gmail_linkedin")
                 self.assertTrue(len(j.deduplication_hash) == 64)
-                self.assertEqual(j.assigned_track, TrackType.TRACK_A)
+                self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
 
     def test_apify_linkedin_scraper(self):
         scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant)
@@ -76,7 +76,7 @@ class TestSourcing(unittest.TestCase):
             self.assertGreater(len(jobs), 0)
             for j in jobs:
                 self.assertEqual(j.source, "apify_linkedin")
-                self.assertIn(j.assigned_track, [TrackType.TRACK_A, TrackType.TRACK_B])
+                self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
 
     def test_baykar_scraper(self):
         scraper = BaykarScraper(self.config.sourcing, self.tenant)

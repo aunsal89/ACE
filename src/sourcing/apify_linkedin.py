@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from src.config import SourcingSettings, TenantProfile
-from src.database.models import JobListingCreate, JobStatus, TrackType
+from src.database.models import JobListingCreate, JobStatus
 from src.sourcing.base import BaseScraper
 from src.utils.hashing import clean_job_url, generate_deduplication_hash
 from src.utils.http import request_with_retry
@@ -26,24 +26,19 @@ class ApifyLinkedInScraper(BaseScraper):
         self.actor_endpoint = "https://api.apify.com/v2/acts/curious_coder~linkedin-jobs-scraper/run-sync-get-dataset-items"
 
     def build_search_payloads(self) -> List[Dict[str, Any]]:
-        """Construct boolean searches for Track A and Track B roles."""
+        """Construct boolean searches based on candidate preferences."""
         payloads = []
+        titles = self.tenant.preferences.target_titles or ["Software Engineer"]
+        locations = self.tenant.preferences.target_locations or ["Remote"]
 
-        if self.tenant.tracks.track_a.enabled:
-            payloads.append({
-                "keywords": "Embedded Software (Director OR Manager OR Lead OR Architect)",
-                "location": "Turkey",
-                "track": TrackType.TRACK_A
-            })
+        for title in titles[:2]:
+            for loc in locations[:2]:
+                payloads.append({
+                    "keywords": title,
+                    "location": loc,
+                })
 
-        if self.tenant.tracks.track_b.enabled:
-            payloads.append({
-                "keywords": "Quantitative Developer OR Algorithmic Trading",
-                "location": "Europe",
-                "track": TrackType.TRACK_B
-            })
-
-        return payloads
+        return payloads or [{"keywords": "Software Engineer", "location": "Remote"}]
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
         """Query Apify Actor endpoint or return verified mock listings if token not configured or limit reached."""
@@ -82,7 +77,6 @@ class ApifyLinkedInScraper(BaseScraper):
                     items = resp.json()
                     if isinstance(items, list):
                         for it in items:
-                            it["_target_track"] = p["track"]
                             all_listings.append(it)
                 elif resp.status_code in [402, 403, 429] or "limit exceeded" in resp.text.lower() or "monthly usage" in resp.text.lower():
                     quota_exceeded = True
@@ -128,11 +122,6 @@ class ApifyLinkedInScraper(BaseScraper):
             or "remote" in title.lower()
         )
 
-        track = raw_data.get("_target_track", TrackType.UNASSIGNED)
-        if track == TrackType.UNASSIGNED:
-            t_low = f"{title} {description}".lower()
-            track = TrackType.TRACK_A if "embedded" in t_low or "mbd" in t_low else TrackType.TRACK_B if "quant" in t_low or "trading" in t_low else TrackType.UNASSIGNED
-
         dedup_hash = generate_deduplication_hash(
             company=company,
             title=title,
@@ -155,7 +144,7 @@ class ApifyLinkedInScraper(BaseScraper):
             description_raw=description,
             description_cleaned=description.strip(),
             salary_raw=raw_data.get("salary", None),
-            assigned_track=track,
+            assigned_track="GENERAL",
             status=JobStatus.DISCOVERED,
             raw_metadata_json=str(ext_id)
         )
@@ -171,7 +160,6 @@ class ApifyLinkedInScraper(BaseScraper):
                 "description": "Directing next-generation EV architecture, AUTOSAR software stacks, VCU/BMS controllers, and safety lifecycle ASIL C/D.",
                 "salary": "$9,500 - $12,000 / month (Net)",
                 "isRemote": False,
-                "_target_track": TrackType.TRACK_A
             },
             {
                 "jobId": "li_9085678",
@@ -182,6 +170,5 @@ class ApifyLinkedInScraper(BaseScraper):
                 "description": "Architect high-speed algorithmic execution engines, risk controllers, and automated market-making algorithms using Python and C++.",
                 "salary": "£160,000 - £200,000 / year",
                 "isRemote": True,
-                "_target_track": TrackType.TRACK_B
             }
         ]
