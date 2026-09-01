@@ -122,7 +122,9 @@ class ApplicationGenerator(BaseApplicator):
         links_line = " | ".join(links_parts) if links_parts else ""
 
         skills = ", ".join(track_profile.core_competencies[:10]) if track_profile.core_competencies else "Domain Architecture, Engineering Execution, High-Impact Delivery"
-        years_exp = getattr(track_profile.experience_requirements, "min_total_years", 5)
+        
+        exp_reqs = getattr(track_profile, "experience_requirements", None)
+        years_exp = getattr(exp_reqs, "min_total_years", 5) if exp_reqs else 5
 
         summary = (
             f"Accomplished {job.title} professional with {years_exp}+ years of proven engineering expertise. "
