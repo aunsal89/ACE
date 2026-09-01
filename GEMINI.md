@@ -29,7 +29,7 @@ Comprehensive architectural guide, operational directives, and codebase referenc
   - Testing: `pytest`, `pytest-cov`, `pytest-asyncio`
 * **Brevity & Token Efficiency Directives:** Status reports and explanations must remain ultra-concise, high-signal, and minimal in token usage unless the user explicitly requests deep-dive details.
 * **Mandatory Smoke Testing:** Every new feature, module addition, or bug fix MUST be subjected to an end-to-end smoke test (CLI simulation, test suite verification in `lnxenv`) prior to completion.
-* **Atomic Commits:** All project milestones, refactors, and phase completions must be committed atomically with clear, high-signal commit messages.
+* **Atomic Commits & Branch Protection:** The `main` branch is **strictly protected**. AI agents and contributors MUST NEVER push directly to `main`. All updates, bug fixes, and features MUST be committed atomically to a newly created branch (e.g., `fix-issue-name` or `feature-name`), pushed to `origin`, and left as a Pull Request for manual review and merge by the owner.
 
 ---
 

@@ -242,6 +242,13 @@ class LLMScoringClient:
             cv_text = cv_path.read_text(encoding="utf-8", errors="replace")
             lines.append(f"\nCandidate Career History / CV:\n{cv_text[:3000]}")
 
+        lines.append(
+            "\nCRITICAL EVALUATION RULE:\n"
+            "The candidate's target locations are STRICT. If the job's location does not strongly align "
+            "with the specified Target Locations/Regions (and the job is not explicitly Remote), "
+            "you MUST heavily penalize the location_score (e.g. < 40) and set recommendation to 'REJECT'."
+        )
+
         return "\n".join(lines)
 
     def _evaluate_deterministic(self, job: JobListing) -> Dict[str, Any]:
@@ -262,15 +269,15 @@ class LLMScoringClient:
             exclusions_hit = [e for e in ta.exclusions if e.lower() in title_desc]
 
             loc_match = any(loc.lower().split(",")[0] in company_loc for loc in ta.target_locations) or job.is_remote
-            location_score = 100.0 if loc_match else 60.0
+            location_score = 100.0 if loc_match else 30.0
 
             tech_score = min(100.0, 50.0 + len(matched_kws) * 10.0)
             leadership_score = 90.0 if any(l in title_desc for l in ["lead", "director", "head", "manager", "chief", "principal", "architect"]) else 70.0
             comp_score = 85.0
 
-            if exclusions_hit:
+            if exclusions_hit or not loc_match:
                 fits = False
-                overall = 30.0
+                overall = 30.0 if not loc_match else 30.0
                 rec = "REJECT"
             else:
                 overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
@@ -298,15 +305,15 @@ class LLMScoringClient:
             is_excluded = any(ex.lower() in company_loc for ex in tb.excluded_regions)
 
             loc_match = any(c.lower() in company_loc for c in tb.target_cities) or job.is_remote
-            location_score = 0.0 if is_excluded else 100.0 if loc_match else 70.0
+            location_score = 0.0 if is_excluded else 100.0 if loc_match else 30.0
 
             tech_score = min(100.0, 60.0 + len(matched_kws) * 10.0)
             leadership_score = 90.0
             comp_score = 90.0
 
-            fits = not is_excluded and location_score >= 70 and tech_score >= 60
-            overall = (tech_score * 0.45) + (location_score * 0.35) + (comp_score * 0.20)
-            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if is_excluded else "MANUAL_REVIEW"
+            fits = not is_excluded and loc_match and tech_score >= 60
+            overall = (tech_score * 0.45) + (location_score * 0.35) + (comp_score * 0.20) if loc_match else 30.0
+            rec = "QUEUE" if overall >= 75.0 and fits else "REJECT" if (is_excluded or not loc_match) else "MANUAL_REVIEW"
 
             return {
                 "track": "TRACK_B",
