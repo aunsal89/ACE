@@ -128,10 +128,19 @@ class ExperienceRequirements(BaseModel):
     max_team_size_managed: int = 0
 
 
+class TargetCompanyConfig(BaseModel):
+    name: str
+    url: str
+    location: Optional[str] = None
+    enabled: bool = True
+    keywords: List[str] = Field(default_factory=list)
+
+
 class JobPreferences(BaseModel):
     target_titles: List[str] = Field(default_factory=list)
     target_sectors: List[str] = Field(default_factory=list)
     target_locations: List[str] = Field(default_factory=list)
+    target_companies: List[TargetCompanyConfig] = Field(default_factory=list)
     compensation: CompensationConfig = Field(default_factory=CompensationConfig)
     experience_requirements: ExperienceRequirements = Field(default_factory=ExperienceRequirements)
     core_competencies: List[str] = Field(default_factory=list)
@@ -197,6 +206,7 @@ class TenantProfile(BaseModel):
     links: TenantLinks = Field(default_factory=TenantLinks)
     sources_of_truth: SourcesOfTruth = Field(default_factory=SourcesOfTruth)
     preferences: JobPreferences = Field(default_factory=JobPreferences)
+    target_companies: List[TargetCompanyConfig] = Field(default_factory=list)
     product_engineering_showcase: Optional[ProductEngineeringShowcase] = None
     generation_preferences: GenerationPreferences = Field(default_factory=GenerationPreferences)
 
@@ -288,7 +298,7 @@ def load_engine_config(config_path: Optional[str | Path] = None) -> EngineConfig
 
 
 def load_tenant_profile(tenant_id: Optional[str] = None, config: Optional[EngineConfig] = None) -> TenantProfile:
-    """Load and validate a tenant profile from YAML."""
+    """Load and validate a tenant profile from YAML with custom target companies resolution."""
     if config is None:
         config = load_engine_config()
 
@@ -300,7 +310,6 @@ def load_tenant_profile(tenant_id: Optional[str] = None, config: Optional[Engine
         # Check if an example profile or any tenant exists
         available = TenantManager(config).list_available_tenants()
         if available:
-            # Fall back to first available tenant if active_tenant not found
             fallback_id = available[0]
             tenant_dir = config.multi_tenancy.tenants_dir / fallback_id
             tenant_file = tenant_dir / "profile.yaml"
@@ -318,13 +327,49 @@ def load_tenant_profile(tenant_id: Optional[str] = None, config: Optional[Engine
     for key in ["cv_markdown", "education_markdown", "skills_toolbox"]:
         val = sources.get(key)
         if val and not Path(val).is_absolute():
-            # Check tenant_dir / val first, then PROJECT_ROOT / val
             candidate_p = tenant_dir / val
             if candidate_p.exists():
                 sources[key] = str(candidate_p.resolve())
             else:
                 sources[key] = str((PROJECT_ROOT / val).resolve())
     raw_data["sources_of_truth"] = sources
+
+    # Resolve target companies:
+    # Priority 1: config/tenants/<tenant_id>/target_companies.yaml
+    # Priority 2: profile.yaml (preferences.target_companies or target_companies)
+    # Priority 3: config/target_companies.example.yaml (fallback template)
+    target_comps: List[Dict[str, Any]] = []
+    companies_file = tenant_dir / "target_companies.yaml"
+    if companies_file.exists():
+        try:
+            with open(companies_file, "r", encoding="utf-8") as cf:
+                cdata = yaml.safe_load(cf) or {}
+                if isinstance(cdata, dict) and "target_companies" in cdata:
+                    target_comps = cdata["target_companies"] or []
+                elif isinstance(cdata, list):
+                    target_comps = cdata
+        except Exception:
+            pass
+
+    if not target_comps:
+        pref = raw_data.get("preferences", {})
+        target_comps = pref.get("target_companies") or raw_data.get("target_companies") or []
+
+    if not target_comps:
+        example_template = PROJECT_ROOT / "config" / "target_companies.example.yaml"
+        if example_template.exists():
+            try:
+                with open(example_template, "r", encoding="utf-8") as ef:
+                    edata = yaml.safe_load(ef) or {}
+                    if isinstance(edata, dict) and "target_companies" in edata:
+                        target_comps = edata["target_companies"] or []
+            except Exception:
+                pass
+
+    if "preferences" not in raw_data:
+        raw_data["preferences"] = {}
+    raw_data["preferences"]["target_companies"] = target_comps
+    raw_data["target_companies"] = target_comps
 
     return TenantProfile.model_validate(raw_data)
 
@@ -350,6 +395,59 @@ class TenantManager:
             d.name for d in tenants_dir.iterdir()
             if d.is_dir() and (d / "profile.yaml").exists()
         ])
+
+    def load_target_companies(self, tenant_id: Optional[str] = None) -> List[TargetCompanyConfig]:
+        """Retrieve the target companies list for a specific candidate tenant."""
+        tenant = self.get_tenant(tenant_id)
+        return tenant.target_companies or []
+
+    def save_target_companies(self, tenant_id: str, companies: List[TargetCompanyConfig]) -> Path:
+        """Persist target companies list to config/tenants/<tenant_id>/target_companies.yaml."""
+        clean_id = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in tenant_id.strip().lower())
+        tenant_dir = self.config.multi_tenancy.tenants_dir / clean_id
+        tenant_dir.mkdir(parents=True, exist_ok=True)
+        target_file = tenant_dir / "target_companies.yaml"
+
+        data = {
+            "target_companies": [c.model_dump() for c in companies]
+        }
+        with open(target_file, "w", encoding="utf-8") as f:
+            yaml.dump(data, f, sort_keys=False, allow_unicode=True)
+
+        if clean_id in self._tenants_cache:
+            del self._tenants_cache[clean_id]
+        return target_file
+
+    def add_target_company(
+        self,
+        tenant_id: str,
+        name: str,
+        url: str,
+        location: Optional[str] = None,
+        keywords: Optional[List[str]] = None,
+    ) -> TargetCompanyConfig:
+        """Add or update a target company for a tenant."""
+        existing = self.load_target_companies(tenant_id)
+        new_entry = TargetCompanyConfig(
+            name=name.strip(),
+            url=url.strip(),
+            location=location.strip() if location else None,
+            enabled=True,
+            keywords=keywords or [],
+        )
+        updated = [c for c in existing if c.name.lower() != name.strip().lower()]
+        updated.append(new_entry)
+        self.save_target_companies(tenant_id, updated)
+        return new_entry
+
+    def remove_target_company(self, tenant_id: str, name: str) -> bool:
+        """Remove a target company from a tenant's target list."""
+        existing = self.load_target_companies(tenant_id)
+        filtered = [c for c in existing if c.name.lower() != name.strip().lower()]
+        if len(filtered) != len(existing):
+            self.save_target_companies(tenant_id, filtered)
+            return True
+        return False
 
     def create_tenant(
         self,

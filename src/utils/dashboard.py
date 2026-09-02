@@ -116,23 +116,29 @@ def generate_inbox_dashboard(
     repo = JobRepository(config.database.db_path)
 
     inbox_dir = config.engine.inbox_dir
-    target_html = Path(output_html_path) if output_html_path else inbox_dir / "index.html"
+    tenant_inbox_dir = inbox_dir / tenant.tenant_id
+    tenant_inbox_dir.mkdir(parents=True, exist_ok=True)
+
+    target_html = Path(output_html_path) if output_html_path else tenant_inbox_dir / "index.html"
     target_html.parent.mkdir(parents=True, exist_ok=True)
+    base_html_dir = target_html.parent
 
     # Query all jobs and evaluations
     all_jobs = repo.list_jobs(limit=1000)
     packages = repo.get_application_packages()
     pkgs_by_job_id = {p.job_id: p for p in packages}
 
-    # Also scan disk for any staged folders under inbox_dir
+    # Also scan disk for any staged folders under inbox_dir or tenant_inbox_dir
     disk_folders_by_job_id: Dict[str, Path] = {}
-    for item in inbox_dir.rglob("*"):
-        if item.is_dir():
-            parts = item.name.split("_")
-            if parts:
-                short_id = parts[-1]
-                if len(short_id) == 8:
-                    disk_folders_by_job_id[short_id] = item
+    for search_root in [tenant_inbox_dir, inbox_dir]:
+        if search_root.exists():
+            for item in search_root.rglob("*"):
+                if item.is_dir():
+                    parts = item.name.split("_")
+                    if parts:
+                        short_id = parts[-1]
+                        if len(short_id) == 8:
+                            disk_folders_by_job_id[short_id] = item
 
     job_cards_data: List[Dict[str, Any]] = []
 
@@ -160,21 +166,23 @@ def generate_inbox_dashboard(
 
         if staged_dir and staged_dir.exists():
             try:
-                rel = os.path.relpath(staged_dir, inbox_dir)
-                folder_rel_path = f"./{rel}"
+                rel = os.path.relpath(staged_dir, base_html_dir).replace("\\", "/")
+                folder_rel_path = f"./{rel}" if not rel.startswith(".") else rel
                 for f in staged_dir.iterdir():
+                    f_rel = os.path.relpath(f, base_html_dir).replace("\\", "/")
+                    f_rel_path = f"./{f_rel}" if not f_rel.startswith(".") else f_rel
                     if f.name.endswith(".pdf") and "Resume" in f.name:
-                        resume_pdf_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        resume_pdf_rel = f_rel_path
                     elif f.name.endswith(".pdf") and "Cover_Letter" in f.name:
-                        cover_pdf_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        cover_pdf_rel = f_rel_path
                     elif f.name.endswith(".md") and "Resume" in f.name:
-                        resume_md_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        resume_md_rel = f_rel_path
                     elif f.name.endswith(".md") and "Cover_Letter" in f.name:
-                        cover_md_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        cover_md_rel = f_rel_path
                     elif f.name == "LinkedIn_Guidance.md":
-                        linkedin_md_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        linkedin_md_rel = f_rel_path
                     elif f.name == "Job_Details.md":
-                        details_md_rel = f"./{os.path.relpath(f, inbox_dir)}"
+                        details_md_rel = f_rel_path
             except Exception:
                 pass
 
@@ -254,6 +262,14 @@ def generate_inbox_dashboard(
 
     target_html.write_text(html_content, encoding="utf-8")
     logger.info(f"Dashboard generated successfully at {target_html}")
+
+    # Mirror to top-level inbox/index.html if default path was used
+    if not output_html_path and target_html != inbox_dir / "index.html":
+        try:
+            (inbox_dir / "index.html").write_text(html_content, encoding="utf-8")
+        except Exception:
+            pass
+
     return target_html
 
 

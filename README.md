@@ -98,12 +98,15 @@ Open `inbox/index.html` in your web browser to explore your interactive review d
 | :--- | :--- |
 | `python run.py setup` | Interactive step-by-step onboarding wizard for API keys and candidate CV |
 | `python run.py pipeline` | Execute full multi-channel sourcing, AI scoring, drafting, and notification pipeline |
+| `python run.py companies list` | List configured target companies and career portals for active candidate |
+| `python run.py companies add <name> <url>` | Add or update a targeted company career portal (e.g. ASML, Baykar, Apple) |
+| `python run.py companies remove <name>` | Remove a target company from the candidate's target list |
 | `python run.py import-cv <path>` | Ingest a PDF, MD, or TXT CV and extract structured sources of truth |
 | `python run.py tenant list` | List all configured candidate profiles on this device |
 | `python run.py tenant switch <id>` | Switch the active candidate profile |
 | `python run.py tenant show [id]` | Display tenant configuration, target preferences, and CV sources |
 | `python run.py tenant create` | Add a new candidate tenant to this device |
-| `python run.py dashboard` | Regenerate the interactive HTML review dashboard in `/inbox/` |
+| `python run.py dashboard` | Regenerate the interactive HTML review dashboard in `inbox/<tenant_id>/index.html` |
 | `python run.py status` | Display system overview, tenant info, and database pipeline statistics |
 | `python run.py list-jobs` | List sourced job opportunities in terminal with status and track filters |
 | `python run.py score` | Run LLM fit evaluation on discovered jobs |

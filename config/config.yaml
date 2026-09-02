@@ -45,6 +45,9 @@ sourcing:
     apify_linkedin:
       enabled: true
       priority: 1
+    targeted_companies:
+      enabled: true
+      priority: 2
     baykar:
       enabled: true
       priority: 2

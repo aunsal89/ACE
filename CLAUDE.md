@@ -29,6 +29,11 @@ python run.py tenant switch <tenant_id>
 python run.py tenant show [tenant_id]
 python run.py tenant create
 
+# Target companies & career portals
+python run.py companies list
+python run.py companies add "ASML" "https://www.asml.com/en/careers" --location "Veldhoven, Netherlands"
+python run.py companies remove "ASML"
+
 # Review dashboard & listings
 python run.py dashboard
 python run.py list-jobs --status QUEUED

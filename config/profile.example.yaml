@@ -35,6 +35,20 @@ preferences:
   target_locations:
     - "London, United Kingdom"
     - "Remote"
+  # Target Companies or Custom Career Portals (Optional - Scraped in addition to aggregators)
+  target_companies:
+    - name: "ASML"
+      url: "https://www.asml.com/en/careers"
+      location: "Veldhoven, Netherlands / Remote"
+      enabled: true
+    - name: "Baykar Technologies"
+      url: "https://kariyer.baykartech.com/tr/"
+      location: "Istanbul, Turkey"
+      enabled: true
+    - name: "ASELSAN"
+      url: "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar"
+      location: "Ankara / Istanbul, Turkey"
+      enabled: true
   compensation:
     min_monthly_net_usd: 7500.0
     currency: "USD"

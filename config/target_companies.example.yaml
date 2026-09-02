@@ -1,0 +1,46 @@
+# Autonomous Career Engine (ACE) - Target Companies & Career Portals Template
+# Copy this file to config/tenants/<your_tenant_id>/target_companies.yaml or configure inside profile.yaml
+# You can also manage companies via CLI: python run.py companies list|add|remove
+
+target_companies:
+  - name: "ASELSAN"
+    url: "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar"
+    location: "Ankara / Istanbul, Turkey"
+    enabled: true
+    keywords: ["Defense", "Radar", "Avionics", "Embedded Systems", "MBD"]
+
+  - name: "Baykar Technologies"
+    url: "https://kariyer.baykartech.com/tr/"
+    location: "Istanbul, Turkey"
+    enabled: true
+    keywords: ["UAV", "Flight Control", "Embedded", "Robotics", "Power Electronics"]
+
+  - name: "TUSAŞ (Turkish Aerospace)"
+    url: "https://www.tusas.com/kariyer/acik-pozisyonlar"
+    location: "Ankara / Eskisehir, Turkey"
+    enabled: true
+    keywords: ["Aerospace", "Flight Software", "DO-178C", "Systems Engineering"]
+
+  - name: "ROKETSAN"
+    url: "https://www.roketsan.com.tr/tr/kariyer/is-firsatlari"
+    location: "Ankara, Turkey"
+    enabled: true
+    keywords: ["Guidance & Control", "Missile Systems", "Firmware", "Motor Control"]
+
+  - name: "Vizyoner Genç"
+    url: "https://vizyonergenc.com/ilanlar"
+    location: "Turkey"
+    enabled: true
+    keywords: ["Defense Industry Talent Portal", "Aerospace", "Engineering"]
+
+  - name: "ASML"
+    url: "https://www.asml.com/en/careers"
+    location: "Veldhoven, Netherlands / Remote"
+    enabled: true
+    keywords: ["Semiconductor", "Lithography", "Control Systems", "Software Architecture"]
+
+  - name: "Siemens"
+    url: "https://www.siemens.com/global/en/company/jobs.html"
+    location: "Global / Remote"
+    enabled: true
+    keywords: ["Industrial Automation", "Power Systems", "Cloud", "Embedded"]
