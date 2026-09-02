@@ -160,44 +160,61 @@ class GoogleJobsScraper(BaseScraper):
         return min(nums), max(nums), currency
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        titles = self.tenant.preferences.target_titles or ["Software Engineer", "Engineering Lead"]
+        locations = self.tenant.preferences.target_locations or ["Remote"]
+        competencies = self.tenant.preferences.core_competencies or ["System Architecture", "Engineering Delivery"]
+
+        t1 = titles[0]
+        t2 = titles[1] if len(titles) > 1 else f"Senior {titles[0]}"
+        t3 = titles[2] if len(titles) > 2 else f"Lead {titles[0]}"
+
+        l1 = locations[0]
+        l2 = locations[1] if len(locations) > 1 else locations[0]
+        l3 = "Remote" if any("remote" in loc.lower() for loc in locations) else (locations[0] if locations else "Remote")
+
+        kws1 = ", ".join(competencies[:3]) if competencies else "System Architecture, Cloud, Agile"
+        kws2 = ", ".join(competencies[2:5] or competencies[:2]) if competencies else "High-Scale Systems, CI/CD"
+        kws3 = ", ".join(competencies[:2]) if competencies else "Engineering Leadership, Technical Delivery"
+
         return [
             {
-                "job_id": "gj_quant_ldn_01",
-                "title": "Quantitative Software Engineer - Algorithmic Execution",
-                "company_name": "Man Group",
-                "location": "London, United Kingdom",
-                "description": "Develop high-throughput algorithmic execution platforms and walk-forward backtesting pipelines in Python and C++.",
-                "share_link": "https://www.man.com/careers/quant-engineer-01",
+                "job_id": "gj_mock_01",
+                "title": t1,
+                "company_name": "Acme Global Tech",
+                "location": l1,
+                "description": f"We are seeking a talented {t1} to drive engineering excellence. Requirements include deep expertise in {kws1}.",
+                "share_link": "https://careers.acme-tech.example/jobs/01",
                 "detected_extensions": {
-                    "salary": "£140,000 - £180,000 a year",
+                    "salary": "$120,000 - $160,000 a year",
                     "schedule_type": "Full-time",
-                    "work_from_home": True
+                    "work_from_home": "remote" in l1.lower(),
                 },
             },
             {
-                "job_id": "gj_emb_ist_02",
-                "title": "Head of Embedded Software Engineering",
-                "company_name": "AVL Turkey",
-                "location": "Istanbul, Turkey",
-                "description": "Lead 25+ software engineers developing EV Powertrain ECUs, Inverter controls, and MBD Simulink models under ISO 26262 ASIL D and AUTOSAR.",
-                "share_link": "https://www.avl.com/careers/head-of-embedded-istanbul",
+                "job_id": "gj_mock_02",
+                "title": t2,
+                "company_name": "Nexus Systems Enterprise",
+                "location": l2,
+                "description": f"Join our engineering division as a {t2}. You will lead critical technical initiatives specializing in {kws2}.",
+                "share_link": "https://careers.nexus-systems.example/jobs/02",
                 "detected_extensions": {
-                    "salary": "$110,000 - $135,000 a year",
+                    "salary": "$135,000 - $175,000 a year",
                     "schedule_type": "Full-time",
-                    "work_from_home": False
+                    "work_from_home": "remote" in l2.lower(),
                 },
             },
             {
-                "job_id": "gj_quant_sg_03",
-                "title": "Quantitative Developer - Crypto & Equities Yields",
-                "company_name": "QCP Capital",
-                "location": "Singapore",
-                "description": "Build automated spot/derivatives execution engines with multi-layer risk management, regime detection, and low-latency exchange interfaces.",
-                "share_link": "https://www.qcp.capital/careers/quant-dev",
+                "job_id": "gj_mock_03",
+                "title": t3,
+                "company_name": "Vertex Engineering Labs",
+                "location": l3,
+                "description": f"Key technical opening for a {t3} to scale robust architectures and deliver mission-critical solutions in {kws3}.",
+                "share_link": "https://careers.vertex-labs.example/jobs/03",
                 "detected_extensions": {
-                    "salary": "$150,000 - $220,000 a year",
+                    "salary": "$140,000 - $190,000 a year",
                     "schedule_type": "Full-time",
-                    "work_from_home": True
+                    "work_from_home": "remote" in l3.lower(),
                 },
-            }
+            },
         ]

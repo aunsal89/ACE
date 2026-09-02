@@ -105,42 +105,62 @@ class NotificationService:
                     logger.info(f"Telegram notification delivered successfully (attempt {attempt}).")
                     return True
 
-                # If HTML parsing failed (400 Bad Request), fallback immediately to plain text
-                if resp.status_code == 400 and current_parse_mode:
+                # Parse JSON response if available
+                resp_desc = ""
+                retry_after_delay = None
+                try:
+                    resp_json = resp.json()
+                    resp_desc = str(resp_json.get("description", ""))
+                    if "parameters" in resp_json and "retry_after" in resp_json["parameters"]:
+                        retry_after_delay = float(resp_json["parameters"]["retry_after"])
+                except Exception:
+                    resp_desc = resp.text
+
+                desc_lower = resp_desc.lower()
+
+                # 1. Check if HTML parsing failed (Bad Request with parse/entity error)
+                if resp.status_code == 400 and current_parse_mode and any(k in desc_lower for k in ["entity", "entities", "parse", "tag", "unclosed"]):
                     logger.warning(
-                        "Telegram returned 400 Bad Request (likely malformed HTML entity). "
+                        f"Telegram returned 400 ({resp_desc}). "
                         "Stripping HTML tags and retrying as plain text..."
                     )
                     current_parse_mode = None
                     current_text = re.sub(r"<[^>]+>", "", text)
                     continue
 
-                # If 404 Not Found, the Bot Token is invalid / rejected by Telegram API (permanent failure)
-                if resp.status_code == 404:
+                # 2. Check for Chat Not Found or User Not Found (permanent configuration failure)
+                if resp.status_code == 400 and any(k in desc_lower for k in ["chat not found", "user not found", "chat_id", "peer_id_invalid"]):
                     logger.error(
-                        f"Telegram API returned HTTP 404 Not Found ({resp.text.strip()[:150]}). "
-                        "The configured TELEGRAM_BOT_TOKEN is invalid or unrecognized by Telegram. "
-                        "Aborting retries."
+                        f"Telegram notification failure: {resp_desc} (TELEGRAM_CHAT_ID='{self.telegram_chat_id}'). "
+                        "Please verify your TELEGRAM_CHAT_ID in .env and make sure you have started a conversation with your bot by sending /start."
                     )
                     return False
 
-                # Parse response for rate limit retry_after
-                retry_after_delay = None
-                try:
-                    resp_json = resp.json()
-                    if "parameters" in resp_json and "retry_after" in resp_json["parameters"]:
-                        retry_after_delay = float(resp_json["parameters"]["retry_after"])
-                except Exception:
-                    pass
+                # 3. Check for Forbidden (e.g. bot blocked by user)
+                if resp.status_code == 403 or "blocked" in desc_lower:
+                    logger.error(
+                        f"Telegram notification failure (Status 403): {resp_desc}. "
+                        "The Telegram bot was blocked by the user or lacks messaging permission."
+                    )
+                    return False
+
+                # 4. Check for invalid Bot Token (401 Unauthorized or 404 Not Found)
+                if resp.status_code in [401, 404]:
+                    logger.error(
+                        f"Telegram API returned HTTP {resp.status_code} ({resp_desc[:150]}). "
+                        "The configured TELEGRAM_BOT_TOKEN is invalid or unrecognized by Telegram. "
+                        "Aborting delivery."
+                    )
+                    return False
 
                 # Transient errors to retry: 429 (rate limit), 500, 502, 503, 504
                 if resp.status_code in [429, 500, 502, 503, 504]:
                     logger.warning(
-                        f"Telegram API returned HTTP {resp.status_code} ({resp.text.strip()[:150]}) "
+                        f"Telegram API returned HTTP {resp.status_code} ({resp_desc[:150]}) "
                         f"(attempt {attempt}/{max_retries})."
                     )
                 else:
-                    logger.error(f"Telegram notification permanent failure (Status {resp.status_code}): {resp.text}")
+                    logger.error(f"Telegram notification permanent failure (Status {resp.status_code}): {resp_desc}")
                     return False
 
             except (requests.exceptions.RequestException, requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:

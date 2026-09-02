@@ -171,39 +171,100 @@ class LLMScoringClient:
 
         return None
 
+    def check_location_fit(self, job_location: Optional[str], is_remote: bool) -> tuple[bool, float]:
+        """
+        Deterministic verification of candidate location preferences.
+        Returns (is_match: bool, score: float).
+        """
+        p = self.tenant.preferences
+        target_locs = p.target_locations or []
+        if not target_locs:
+            return True, 100.0
+
+        user_accepts_remote = any(
+            "remote" in loc.lower() or "anywhere" in loc.lower() or "global" in loc.lower()
+            for loc in target_locs
+        )
+
+        if is_remote and user_accepts_remote:
+            return True, 100.0
+
+        if not job_location or not job_location.strip():
+            return (True, 70.0) if user_accepts_remote else (False, 30.0)
+
+        job_loc_lower = job_location.lower()
+
+        # Direct token / substring / city / country matching
+        for target in target_locs:
+            t_lower = target.lower().strip()
+            if t_lower in ["remote", "anywhere", "global"]:
+                continue
+            parts = [part.strip() for part in t_lower.replace("/", ",").split(",") if part.strip()]
+            for part in parts:
+                if part in job_loc_lower or job_loc_lower in part:
+                    return True, 100.0
+
+        # If job is remote but candidate didn't explicitly include Remote
+        if is_remote:
+            return False, 50.0
+
+        return False, 15.0
+
     def evaluate_fit(self, job: JobListing) -> OpportunityEvaluationSchema:
         """
         Evaluate candidate fit for a job listing against tenant profile.
-        Executes configured fallback chain with deterministic rule fallback.
+        Executes configured fallback chain with deterministic rule fallback and programmatic guardrails.
         """
+        eval_schema: Optional[OpportunityEvaluationSchema] = None
+
         for provider in self.settings.fallback_chain:
             try:
                 if provider == "google-genai" and self.gemini_key:
                     res = self._evaluate_with_gemini(job)
                     if res:
-                        return OpportunityEvaluationSchema.model_validate(res)
+                        eval_schema = OpportunityEvaluationSchema.model_validate(res)
+                        break
 
                 elif provider == "openrouter" and self.openrouter_key:
                     res = self._evaluate_with_openrouter_dynamic(job)
                     if res:
-                        return OpportunityEvaluationSchema.model_validate(res)
+                        eval_schema = OpportunityEvaluationSchema.model_validate(res)
+                        break
 
                 elif provider == "anthropic" and self.anthropic_key:
                     res = self._evaluate_with_anthropic(job)
                     if res:
-                        return OpportunityEvaluationSchema.model_validate(res)
+                        eval_schema = OpportunityEvaluationSchema.model_validate(res)
+                        break
 
                 elif provider == "openai" and self.openai_key:
                     res = self._evaluate_with_openai(job)
                     if res:
-                        return OpportunityEvaluationSchema.model_validate(res)
+                        eval_schema = OpportunityEvaluationSchema.model_validate(res)
+                        break
 
             except Exception as e:
                 logger.warning(f"Scoring provider '{provider}' failed for job {job.id[:8]}: {e}. Falling back to next...")
 
-        logger.info(f"Using deterministic rule-based evaluation for job {job.id[:8]}")
-        res = self._evaluate_deterministic(job)
-        return OpportunityEvaluationSchema.model_validate(res)
+        if eval_schema is None:
+            logger.info(f"Using deterministic rule-based evaluation for job {job.id[:8]}")
+            res = self._evaluate_deterministic(job)
+            eval_schema = OpportunityEvaluationSchema.model_validate(res)
+
+        # Programmatic Guardrail: Enforce Location Compliance
+        loc_match, calc_loc_score = self.check_location_fit(job.location, job.is_remote)
+        if not loc_match:
+            eval_schema.location_score = min(eval_schema.location_score, calc_loc_score)
+            eval_schema.fits_criteria = False
+            if eval_schema.overall_score > 45.0:
+                eval_schema.overall_score = round(max(15.0, eval_schema.overall_score * 0.45), 1)
+            if eval_schema.recommendation == "QUEUE":
+                eval_schema.recommendation = "REJECT"
+            mismatch_note = f"[Location Mismatch: Job in '{job.location or 'N/A'}' does not match target locations {self.tenant.preferences.target_locations}]"
+            if "location mismatch" not in eval_schema.reasoning.lower():
+                eval_schema.reasoning = f"{eval_schema.reasoning} {mismatch_note}".strip()
+
+        return eval_schema
 
     def _build_tenant_prompt_context(self) -> str:
         t = self.tenant
@@ -225,35 +286,36 @@ class LLMScoringClient:
             lines.append(f"\nCandidate Career History / CV:\n{cv_text[:3000]}")
 
         lines.append(
-            "\nCRITICAL EVALUATION RULE:\n"
-            "The candidate's target locations are STRICT. If the job's location does not strongly align "
-            "with the specified Target Locations/Regions (and the job is not explicitly Remote), "
-            "you MUST heavily penalize the location_score (e.g. < 40) and set recommendation to 'REJECT'."
+            "\nCRITICAL EVALUATION RULES:\n"
+            "1. ROLE & DOMAIN ALIGNMENT:\n"
+            "   Assess whether the job matches the candidate's target roles and technical domain.\n"
+            "2. STRICT LOCATION COMPLIANCE:\n"
+            f"   Target Locations: {', '.join(p.target_locations)}.\n"
+            "   If the job is NOT in one of the candidate's target locations (and NOT remote if remote is accepted), "
+            "   you MUST set location_score <= 25, set fits_criteria to false, and set recommendation to 'REJECT'.\n"
+            "3. EXCLUSIONS:\n"
+            f"   If the job matches any of the candidate's exclusions ({', '.join(p.exclusions)}), set recommendation to 'REJECT'."
         )
 
         return "\n".join(lines)
 
     def _evaluate_deterministic(self, job: JobListing) -> Dict[str, Any]:
         title_desc = f"{job.title} {job.description_raw or ''}".lower()
-        company_loc = f"{job.company} {job.location or ''}".lower()
-
         p = self.tenant.preferences
         matched_kws = [k for k in p.core_competencies if any(sub.lower().strip() in title_desc for sub in k.split("/"))]
         exclusions_hit = [e for e in p.exclusions if e.lower() in title_desc]
 
-        # Check location match against target locations or remote
-        loc_match = any(loc.lower().split(",")[0].strip() in company_loc for loc in p.target_locations) or job.is_remote
-        location_score = 100.0 if loc_match else 30.0
+        loc_match, location_score = self.check_location_fit(job.location, job.is_remote)
 
-        # Title match bonus
+        # Title match evaluation
         title_match = any(t.lower() in title_desc for t in p.target_titles)
-        tech_score = min(100.0, (60.0 if title_match else 50.0) + len(matched_kws) * 10.0)
+        tech_score = min(100.0, (60.0 if title_match else 40.0) + len(matched_kws) * 10.0)
         leadership_score = 90.0 if any(l in title_desc for l in ["lead", "director", "head", "manager", "chief", "principal", "architect"]) else 70.0
         comp_score = 85.0
 
         if exclusions_hit or not loc_match:
             fits = False
-            overall = 30.0 if not loc_match else 35.0
+            overall = min(40.0, location_score) if not loc_match else 35.0
             rec = "REJECT"
         else:
             overall = (tech_score * 0.40) + (leadership_score * 0.30) + (location_score * 0.20) + (comp_score * 0.10)
@@ -272,7 +334,7 @@ class LLMScoringClient:
             "fits_criteria": fits,
             "matched_keywords": matched_kws[:6],
             "missing_keywords": missing_kws,
-            "reasoning": f"Deterministic evaluation: {len(matched_kws)} competencies matched. Location fit: {loc_match}.",
+            "reasoning": f"Deterministic evaluation: {len(matched_kws)} competencies matched. Location match: {loc_match}.",
             "recommendation": rec,
             "model_used": "rule_engine_deterministic"
         }
@@ -331,6 +393,7 @@ Return ONLY valid JSON matching this schema:
         system_prompt = (
             f"You are an executive career evaluation AI assessing job opportunities for {self.tenant.name}.\n"
             f"{candidate_context}\n\n"
+            "Evaluate strictly based on candidate preferences and career profile.\n"
             "Return ONLY a JSON object with keys: overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation."
         )
 
@@ -340,11 +403,7 @@ Return ONLY valid JSON matching this schema:
             f"Company: {job.company}\n"
             f"Location: {job.location or 'N/A'}\n"
             f"Description: {job.description_raw or 'N/A'}\n\n"
-            f"Return ONLY valid JSON matching schema:\n"
-            f'{{"overall_score": 90.0, "comp_score": 90.0, "location_score": 90.0, '
-            f'"tech_stack_score": 90.0, "leadership_score": 90.0, "fits_criteria": true, '
-            f'"matched_keywords": ["keyword1"], "missing_keywords": [], '
-            f'"reasoning": "rationale", "recommendation": "QUEUE"}}'
+            f"Return valid JSON adhering to schema (overall_score, comp_score, location_score, tech_stack_score, leadership_score, fits_criteria, matched_keywords, missing_keywords, reasoning, recommendation)."
         )
 
         eval_obj: OpportunityEvaluationSchema = self.openrouter_manager.execute_with_fallback(
