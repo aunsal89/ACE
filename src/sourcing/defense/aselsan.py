@@ -99,21 +99,25 @@ class AselsanScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        titles = self.tenant.preferences.target_titles or ["Gömülü Yazılım Mimarı", "Sistem Mühendisi"]
+        t1 = f"Kıdemli {titles[0]} (Radar & Savunma Sistemleri)"
+        t2 = f"{titles[1]} (Aviyonik & Güç Sistemleri)" if len(titles) > 1 else f"Takım Lideri - {titles[0]}"
+
         return [
             {
-                "title": "Kıdemli Lider Gömülü Yazılım Mimarı (SST / Radar & Savunma)",
+                "title": t1,
                 "company": "ASELSAN",
                 "location": "Ankara (Macunköy / Temelli), Turkey",
-                "url": "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar/sst-gomulu-mimar-201",
-                "description": "Radar, elektro-optik ve haberleşme aviyonik sistemlerinde C/C++, FreeRTOS/VxWorks, DO-178C ve MBD Simulink tabanlı yüksek güvenlikli yazılım liderliği.",
+                "url": "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar",
+                "description": f"Radar, elektro-optik ve aviyonik savunma sistemlerinde {t1} pozisyonu. C/C++, DO-178C ve MBD Simulink tabanlı yüksek güvenlikli yazılım geliştirme.",
                 "external_id": "aselsan_201"
             },
             {
-                "title": "Güç Elektroniği ve Sürücü Sistemleri Yazılım Takım Lideri",
+                "title": t2,
                 "company": "ASELSAN",
-                "location": "Ankara, Turkey",
-                "url": "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar/guc-elektronigi-lider-202",
-                "description": "Elektrikli zırhlı araç ve deniz platformları cer motoru sürücüleri, MTPA flux-weakening algoritma yönetimi ve dSpace/HIL doğrulama.",
+                "location": "Ankara / Istanbul, Turkey",
+                "url": "https://www.aselsan.com/tr/kariyer/acik-pozisyonlar",
+                "description": f"Elektrikli ve otonom savunma platformlarında {t2} pozisyonu. Gerçek zamanlı kontrol yazılımları, HIL doğrulama ve ekip liderliği.",
                 "external_id": "aselsan_202"
             }
         ]

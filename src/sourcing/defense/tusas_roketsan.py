@@ -13,13 +13,15 @@ class TusasScraper(BaseScraper):
     """Dedicated scraper for TUSAŞ / TEI aerospace positions."""
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
+        titles = self.tenant.preferences.target_titles or ["Gömülü Yazılım Mimarı"]
+        t = titles[0]
         return [
             {
-                "title": "Head of Powertrain & ECU Embedded Software Architecture",
+                "title": f"Milli Havacılık Projeleri - {t}",
                 "company": "TUSAŞ Motor Sanayii (TEI)",
                 "location": "Eskişehir / Ankara, Turkey",
-                "url": "https://www.tei.com.tr/kariyer/ecu-software-lead-401",
-                "description": "FADEC ve motor kontrol üniteleri (ECU) gömülü yazılım mimarisi, Model-Based Design (MBD), DO-178C DAL-A sertifikasyonu ve 20+ mühendislik ekip liderliği.",
+                "url": "https://www.tei.com.tr/tr/kariyer",
+                "description": f"FADEC ve motor kontrol üniteleri (ECU) gömülü mimarisi, Model-Based Design (MBD), DO-178C DAL-A sertifikasyonunda {t} pozisyonu.",
                 "external_id": "tei_401"
             }
         ]
@@ -28,7 +30,7 @@ class TusasScraper(BaseScraper):
         title = raw_data["title"]
         company = raw_data["company"]
         location = raw_data["location"]
-        url = clean_job_url(raw_data["url"])
+        url = clean_job_url(raw_data.get("url", "https://www.tei.com.tr/tr/kariyer"))
         ext_id = raw_data["external_id"]
         desc = raw_data["description"]
 
@@ -63,13 +65,15 @@ class RoketsanScraper(BaseScraper):
     """Dedicated scraper for ROKETSAN missile and traction drive positions."""
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
+        titles = self.tenant.preferences.target_titles or ["Gömülü Yazılım Lideri"]
+        t = titles[0]
         return [
             {
-                "title": "Traction Control & Inverter Firmware Lead",
+                "title": f"Savunma ve Güdüm Sistemleri - {t}",
                 "company": "ROKETSAN",
                 "location": "Ankara (Lalahan), Turkey",
-                "url": "https://www.roketsan.com.tr/kariyer/inverter-firmware-lead-402",
-                "description": "Yüksek gerilimli cer motoru sürücüleri, MTPA algoritması, CAN/Ethernet otomotiv haberleşme protokolleri ve fonksiyonel güvenlik.",
+                "url": "https://www.roketsan.com.tr/tr/kariyer/is-firsatlari",
+                "description": f"Yüksek güvenirlikli kontrol üniteleri, cer motoru sürücüleri ve haberleşme protokolleri alanında {t} pozisyonu.",
                 "external_id": "roketsan_402"
             }
         ]

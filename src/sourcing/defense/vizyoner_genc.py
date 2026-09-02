@@ -103,21 +103,25 @@ class VizyonerGencScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        titles = self.tenant.preferences.target_titles or ["Uçuş Kontrol Mühendisi", "Güdüm & Kontrol Lideri"]
+        t1 = f"{titles[0]} (Milli Havacılık Projeleri)"
+        t2 = f"{titles[1]} (Savunma & Füze Sistemleri)" if len(titles) > 1 else f"Kıdemli {titles[0]}"
+
         return [
             {
-                "title": "Uçuş Kontrol ve Model Tabanlı Tasarım Lider Mühendisi",
+                "title": t1,
                 "company": "TUSAŞ (Türk Havacılık Uzay Sanayii)",
                 "location": "Ankara (Kahramankazan), Turkey",
-                "url": "https://vizyonergenc.com/ilan/tusas-ucus-kontrol-mbd-301",
-                "description": "Milli Muharip Uçak (KAAN) ve HÜRJET projeleri için MATLAB/Simulink/Stateflow ortamında uçuş kontrol algoritmaları, MIL/HIL testleri ve DO-178C uyumlu kod üretimi.",
+                "url": "https://vizyonergenc.com/ilanlar",
+                "description": f"Milli havacılık projeleri için {t1} pozisyonu. MATLAB/Simulink/Stateflow algoritmaları, MIL/HIL testleri ve DO-178C uyumlu gömülü kod üretimi.",
                 "external_id": "vg_tusas_301"
             },
             {
-                "title": "Güdüm Kontrol ve Gömülü Yazılım Takım Lideri",
+                "title": t2,
                 "company": "ROKETSAN",
                 "location": "Ankara (Elmadağ), Turkey",
-                "url": "https://vizyonergenc.com/ilan/roketsan-gudum-kontrol-302",
-                "description": "Füze ve mühimmat sistemleri gerçek zamanlı gömülü kontrol yazılımları, DSP/FPGA algoritmaları ve Lauterbach Trace32 doğrulama süreçleri.",
+                "url": "https://vizyonergenc.com/ilanlar",
+                "description": f"Mühimmat ve roket sistemleri gerçek zamanlı kontrol yazılımları, DSP/FPGA algoritmaları ve Lauterbach Trace32 süreçlerinde {t2} rolü.",
                 "external_id": "vg_roketsan_302"
             }
         ]
