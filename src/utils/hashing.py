@@ -50,27 +50,36 @@ def normalize_location(location: Optional[str]) -> str:
 
 
 def clean_job_url(url: Optional[str]) -> str:
-    """Clean tracking parameters and query noise from job URLs."""
-    if not url:
+    """Clean tracking parameters while strictly preserving fragments, routing, and valid URLs."""
+    if not url or url.strip() in ("", "#"):
         return ""
-    parsed = urlparse(url.strip())
-    tracking_params = {
-        "utm_source", "utm_medium", "utm_campaign", "utm_term",
-        "utm_content", "ref", "tracking_id", "fbclid", "gclid", "source"
-    }
-    filtered_queries = [
-        (k, v) for k, v in parse_qsl(parsed.query)
-        if k.lower() not in tracking_params
-    ]
-    cleaned_url = urlunparse((
-        parsed.scheme,
-        parsed.netloc.lower(),
-        parsed.path.rstrip("/"),
-        parsed.params,
-        urlencode(filtered_queries),
-        ""
-    ))
-    return cleaned_url
+    u = url.strip()
+    if not u.startswith(("http://", "https://")):
+        u = f"https://{u}"
+    try:
+        parsed = urlparse(u)
+        tracking_params = {
+            "utm_source", "utm_medium", "utm_campaign", "utm_term",
+            "utm_content", "fbclid", "gclid", "mc_cid", "mc_eid",
+            "ref", "tracking_id"
+        }
+        filtered_queries = [
+            (k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True)
+            if k.lower() not in tracking_params
+        ]
+        new_query = urlencode(filtered_queries)
+        path = parsed.path or "/"
+        cleaned_url = urlunparse((
+            parsed.scheme or "https",
+            parsed.netloc,
+            path,
+            parsed.params,
+            new_query,
+            parsed.fragment
+        ))
+        return cleaned_url
+    except Exception:
+        return u
 
 
 def generate_deduplication_hash(

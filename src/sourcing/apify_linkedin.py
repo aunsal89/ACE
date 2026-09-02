@@ -121,6 +121,11 @@ class ApifyLinkedInScraper(BaseScraper):
             or "remote" in location.lower()
             or "remote" in title.lower()
         )
+        import urllib.parse
+        raw_url = raw_data.get("jobUrl") or raw_data.get("url") or raw_data.get("applyUrl") or ""
+        if not raw_url:
+            raw_url = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote_plus(title)}&location={urllib.parse.quote_plus(location)}"
+        url = clean_job_url(raw_url)
 
         dedup_hash = generate_deduplication_hash(
             company=company,
@@ -150,7 +155,9 @@ class ApifyLinkedInScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
-        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        """Dynamically construct fallback mock listings tailored to the active candidate profile with live search URLs."""
+        import urllib.parse
+
         titles = self.tenant.preferences.target_titles or ["Senior Systems Engineer"]
         locations = self.tenant.preferences.target_locations or ["Remote"]
         competencies = self.tenant.preferences.core_competencies or ["Architecture Design", "Team Leadership"]
@@ -163,13 +170,16 @@ class ApifyLinkedInScraper(BaseScraper):
         kws1 = ", ".join(competencies[:3]) if competencies else "Technical Leadership, Microservices"
         kws2 = ", ".join(competencies[1:4] or competencies[:2]) if competencies else "Performance Optimization, Distributed Systems"
 
+        u1 = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote_plus(t1)}&location={urllib.parse.quote_plus(l1)}"
+        u2 = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote_plus(t2)}&location={urllib.parse.quote_plus(l2)}"
+
         return [
             {
                 "jobId": "li_mock_9081234",
                 "title": t1,
                 "companyName": "Apex Technologies Group",
                 "location": l1,
-                "jobUrl": "https://www.linkedin.com/jobs/view/9081234",
+                "jobUrl": u1,
                 "description": f"Leading technical architecture and delivery as {t1}. Core requirements: {kws1}.",
                 "salary": "$8,500 - $11,500 / month",
                 "isRemote": "remote" in l1.lower(),
@@ -179,7 +189,7 @@ class ApifyLinkedInScraper(BaseScraper):
                 "title": t2,
                 "companyName": "Horizon Digital Innovations",
                 "location": l2,
-                "jobUrl": "https://www.linkedin.com/jobs/view/9085678",
+                "jobUrl": u2,
                 "description": f"Spearheading development and system scalability as {t2}. Core requirements: {kws2}.",
                 "salary": "$9,500 - $13,000 / month",
                 "isRemote": "remote" in l2.lower(),

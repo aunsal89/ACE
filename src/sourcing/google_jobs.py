@@ -120,10 +120,22 @@ class GoogleJobsScraper(BaseScraper):
         ext_id = raw_data.get("job_id", "")
         description = raw_data.get("description", "")
         
-        # Primary apply link or share link
+        # Primary apply link, share link, or constructed search URL
         apply_options = raw_data.get("apply_options", [])
-        url = apply_options[0].get("link", "") if apply_options else raw_data.get("share_link", "")
-        url = clean_job_url(url)
+        raw_url = ""
+        if apply_options and isinstance(apply_options, list):
+            for opt in apply_options:
+                if isinstance(opt, dict) and opt.get("link"):
+                    raw_url = opt["link"]
+                    break
+        if not raw_url:
+            raw_url = raw_data.get("share_link", "") or raw_data.get("link", "")
+        if not raw_url:
+            import urllib.parse
+            q_term = f"{title} {company} {location}".strip()
+            raw_url = f"https://www.google.com/search?q={urllib.parse.quote_plus(q_term)}&ibp=htl;jobs"
+
+        url = clean_job_url(raw_url)
 
         # Detect salary extensions
         detected_extensions = raw_data.get("detected_extensions", {})
@@ -180,7 +192,9 @@ class GoogleJobsScraper(BaseScraper):
         return min(nums), max(nums), currency
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
-        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        """Dynamically construct fallback mock listings tailored to the active candidate profile with live search URLs."""
+        import urllib.parse
+
         titles = self.tenant.preferences.target_titles or ["Software Engineer", "Engineering Lead"]
         locations = self.tenant.preferences.target_locations or ["Remote"]
         competencies = self.tenant.preferences.core_competencies or ["System Architecture", "Engineering Delivery"]
@@ -197,14 +211,18 @@ class GoogleJobsScraper(BaseScraper):
         kws2 = ", ".join(competencies[2:5] or competencies[:2]) if competencies else "High-Scale Systems, CI/CD"
         kws3 = ", ".join(competencies[:2]) if competencies else "Engineering Leadership, Technical Delivery"
 
+        u1 = f"https://www.google.com/search?q={urllib.parse.quote_plus(t1 + ' ' + l1 + ' jobs')}&ibp=htl;jobs"
+        u2 = f"https://www.google.com/search?q={urllib.parse.quote_plus(t2 + ' ' + l2 + ' jobs')}&ibp=htl;jobs"
+        u3 = f"https://www.google.com/search?q={urllib.parse.quote_plus(t3 + ' ' + l3 + ' jobs')}&ibp=htl;jobs"
+
         return [
             {
                 "job_id": "gj_mock_01",
                 "title": t1,
-                "company_name": "Acme Global Tech",
+                "company_name": "Global Systems Innovations",
                 "location": l1,
                 "description": f"We are seeking a talented {t1} to drive engineering excellence. Requirements include deep expertise in {kws1}.",
-                "share_link": "https://careers.acme-tech.example/jobs/01",
+                "share_link": u1,
                 "detected_extensions": {
                     "salary": "$120,000 - $160,000 a year",
                     "schedule_type": "Full-time",
@@ -214,10 +232,10 @@ class GoogleJobsScraper(BaseScraper):
             {
                 "job_id": "gj_mock_02",
                 "title": t2,
-                "company_name": "Nexus Systems Enterprise",
+                "company_name": "Nexus Enterprise Engineering",
                 "location": l2,
                 "description": f"Join our engineering division as a {t2}. You will lead critical technical initiatives specializing in {kws2}.",
-                "share_link": "https://careers.nexus-systems.example/jobs/02",
+                "share_link": u2,
                 "detected_extensions": {
                     "salary": "$135,000 - $175,000 a year",
                     "schedule_type": "Full-time",
@@ -227,10 +245,10 @@ class GoogleJobsScraper(BaseScraper):
             {
                 "job_id": "gj_mock_03",
                 "title": t3,
-                "company_name": "Vertex Engineering Labs",
+                "company_name": "Vertex Core Technologies",
                 "location": l3,
                 "description": f"Key technical opening for a {t3} to scale robust architectures and deliver mission-critical solutions in {kws3}.",
-                "share_link": "https://careers.vertex-labs.example/jobs/03",
+                "share_link": u3,
                 "detected_extensions": {
                     "salary": "$140,000 - $190,000 a year",
                     "schedule_type": "Full-time",

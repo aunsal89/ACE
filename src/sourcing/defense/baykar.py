@@ -20,12 +20,11 @@ class BaykarScraper(BaseScraper):
     def __init__(self, settings: SourcingSettings, tenant: TenantProfile):
         super().__init__(settings, tenant)
         self.base_url = "https://kariyer.baykartech.com"
-        self.listings_url = "https://kariyer.baykartech.com/tr/ilanlar/"
+        self.listings_url = "https://kariyer.baykartech.com/tr/"
         self.candidate_urls = [
-            "https://kariyer.baykartech.com/tr/ilanlar/",
-            "https://kariyer.baykartech.com/tr/acik-pozisyonlar/",
             "https://kariyer.baykartech.com/tr/",
             "https://kariyer.baykartech.com/",
+            "https://kariyer.baykartech.com/tr/acik-pozisyonlar/",
         ]
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
@@ -118,21 +117,25 @@ class BaykarScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
+        titles = self.tenant.preferences.target_titles or ["Gömülü Sistemler Mimarı", "Uçuş Kontrol Lideri"]
+        t1 = f"{titles[0]} (İHA & Aviyonik Sistemler)"
+        t2 = f"{titles[1]} (Güç & Kontrol Sistemleri)" if len(titles) > 1 else f"Lider {titles[0]}"
+
         return [
             {
-                "title": "Gömülü Sistemler ve Aviyonik Yazılım Lideri",
+                "title": t1,
                 "company": "Baykar",
                 "location": "Istanbul (Hadımköy / Özdemir Bayraktar Milli Teknoloji Merkezi)",
-                "url": "https://kariyer.baykartech.com/tr/ilanlar/gomulu-aviyonik-yazilim-lideri-101",
-                "description": "İnsansız hava araçları kritik uçuş kontrol bilgisayarları ve aviyonik sistemler için Model Tabanlı Tasarım (MBD/Simulink), C/C++ gerçek zamanlı gömülü mimari liderliği.",
+                "url": "https://kariyer.baykartech.com/tr/",
+                "description": f"İnsansız hava araçları kritik sistemleri için {t1} pozisyonu. Model Tabanlı Tasarım (MBD/Simulink), C/C++ gerçek zamanlı gömülü mimari ve ekip liderliği.",
                 "external_id": "baykar_101"
             },
             {
-                "title": "Elektrikli Güç ve Motor Kontrol Yazılım Mimarı",
+                "title": t2,
                 "company": "Baykar",
                 "location": "Istanbul, Turkey",
-                "url": "https://kariyer.baykartech.com/tr/ilanlar/motor-kontrol-mimari-102",
-                "description": "PMSM/IPMSM motor sürücüleri, FOC/MTPA algoritmaları, batarya yönetim sistemleri (BMS) ve güç elektroniği yazılımları geliştirme.",
+                "url": "https://kariyer.baykartech.com/tr/",
+                "description": f"Milli Teknoloji Hamlesi projelerinde {t2} pozisyonu. FOC/MTPA algoritmaları, batarya yönetim sistemleri (BMS) ve güç elektroniği yazılımları geliştirme.",
                 "external_id": "baykar_102"
             }
         ]

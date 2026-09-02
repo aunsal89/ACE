@@ -58,6 +58,7 @@ class TestSourcing(unittest.TestCase):
                 self.assertEqual(j.source, "google_jobs")
                 self.assertTrue(len(j.deduplication_hash) == 64)
                 self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_gmail_linkedin_scraper(self):
         scraper = GmailLinkedInScraper(self.config.sourcing, self.tenant, imap_user="mock@gmail.com", imap_password="mock_password")
@@ -68,6 +69,7 @@ class TestSourcing(unittest.TestCase):
                 self.assertEqual(j.source, "gmail_linkedin")
                 self.assertTrue(len(j.deduplication_hash) == 64)
                 self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_apify_linkedin_scraper(self):
         scraper = ApifyLinkedInScraper(self.config.sourcing, self.tenant)
@@ -77,6 +79,7 @@ class TestSourcing(unittest.TestCase):
             for j in jobs:
                 self.assertEqual(j.source, "apify_linkedin")
                 self.assertIn(j.assigned_track, ["GENERAL", "TRACK_A", "TRACK_B"])
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_baykar_scraper(self):
         scraper = BaykarScraper(self.config.sourcing, self.tenant)
@@ -86,6 +89,7 @@ class TestSourcing(unittest.TestCase):
             for j in jobs:
                 self.assertEqual(j.source, "baykar")
                 self.assertEqual(j.company, "Baykar")
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_aselsan_scraper(self):
         scraper = AselsanScraper(self.config.sourcing, self.tenant)
@@ -95,6 +99,7 @@ class TestSourcing(unittest.TestCase):
             for j in jobs:
                 self.assertEqual(j.source, "aselsan")
                 self.assertEqual(j.company, "ASELSAN")
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_vizyoner_genc_scraper(self):
         scraper = VizyonerGencScraper(self.config.sourcing, self.tenant)
@@ -103,6 +108,7 @@ class TestSourcing(unittest.TestCase):
             self.assertGreater(len(jobs), 0)
             for j in jobs:
                 self.assertEqual(j.source, "vizyoner_genc")
+                self.assertTrue(j.url.startswith(("http://", "https://")))
 
     def test_tusas_and_roketsan_scrapers(self):
         tusas = TusasScraper(self.config.sourcing, self.tenant)
@@ -111,10 +117,12 @@ class TestSourcing(unittest.TestCase):
         t_jobs = tusas.run()
         self.assertGreater(len(t_jobs), 0)
         self.assertEqual(t_jobs[0].source, "tusas")
+        self.assertTrue(t_jobs[0].url.startswith(("http://", "https://")))
 
         r_jobs = roketsan.run()
         self.assertGreater(len(r_jobs), 0)
         self.assertEqual(r_jobs[0].source, "roketsan")
+        self.assertTrue(r_jobs[0].url.startswith(("http://", "https://")))
 
     def test_sourcing_manager_orchestration(self):
         manager = SourcingManager(config=self.config, tenant=self.tenant)

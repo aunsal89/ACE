@@ -309,7 +309,9 @@ class GmailLinkedInScraper(BaseScraper):
         )
 
     def _get_mock_listings(self) -> List[Dict[str, Any]]:
-        """Dynamically construct fallback mock listings tailored to the active candidate profile."""
+        """Dynamically construct fallback mock listings tailored to the active candidate profile with live search URLs."""
+        import urllib.parse
+
         titles = self.tenant.preferences.target_titles or ["Lead Software Engineer"]
         locations = self.tenant.preferences.target_locations or ["Remote"]
         competencies = self.tenant.preferences.core_competencies or ["Software Engineering", "Scalable Systems"]
@@ -322,13 +324,16 @@ class GmailLinkedInScraper(BaseScraper):
         kws1 = ", ".join(competencies[:3]) if competencies else "Architecture, Clean Code, CI/CD"
         kws2 = ", ".join(competencies[1:4] or competencies[:2]) if competencies else "System Design, Team Mentorship"
 
+        u1 = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote_plus(t1)}&location={urllib.parse.quote_plus(l1)}"
+        u2 = f"https://www.linkedin.com/jobs/search/?keywords={urllib.parse.quote_plus(t2)}&location={urllib.parse.quote_plus(l2)}"
+
         return [
             {
                 "job_id": "4456212827",
                 "title": t1,
                 "company": "Vanguard Engineering Solutions",
                 "location": l1,
-                "url": "https://www.linkedin.com/jobs/view/4456212827",
+                "url": u1,
                 "description_raw": f"Spearheading {t1} initiatives with expertise in {kws1}.",
                 "description_cleaned": f"Spearheading {t1} initiatives with expertise in {kws1}.",
                 "employment_type": "Full-time",
@@ -340,7 +345,7 @@ class GmailLinkedInScraper(BaseScraper):
                 "title": t2,
                 "company": "Pinnacle Systems Group",
                 "location": l2,
-                "url": "https://www.linkedin.com/jobs/view/4448083408",
+                "url": u2,
                 "description_raw": f"Directing technical delivery and systems development as {t2} specializing in {kws2}.",
                 "description_cleaned": f"Directing technical delivery and systems development as {t2} specializing in {kws2}.",
                 "employment_type": "Full-time",

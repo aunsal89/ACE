@@ -33,6 +33,17 @@ class TestHashing(unittest.TestCase):
         cleaned = clean_job_url(url)
         self.assertEqual(cleaned, "https://kariyer.baykartech.com/job/101")
 
+        # Test Google Jobs URL fragment preservation
+        google_jobs_url = "https://www.google.com/search?q=embedded+jobs&ibp=htl;jobs#fpstate=tldetail&htidocid=ABC123XYZ"
+        cleaned_gj = clean_job_url(google_jobs_url)
+        self.assertIn("#fpstate=tldetail&htidocid=ABC123XYZ", cleaned_gj)
+        self.assertIn("ibp=htl%3Bjobs", cleaned_gj)
+
+        # Test missing scheme auto-prefix
+        no_scheme = "kariyer.baykartech.com/tr/"
+        cleaned_scheme = clean_job_url(no_scheme)
+        self.assertEqual(cleaned_scheme, "https://kariyer.baykartech.com/tr/")
+
     def test_deterministic_dedup_hash(self):
         h1 = generate_deduplication_hash(
             company="Baykar Teknoloji A.Ş.",
