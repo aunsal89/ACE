@@ -31,14 +31,24 @@ class GoogleJobsScraper(BaseScraper):
 
         for title in titles[:3]:
             for loc in locations[:2]:
+                is_remote = loc.lower() in ("remote", "any", "worldwide", "global")
+                if is_remote:
+                    combined_q = f"{title} remote"
+                elif loc:
+                    combined_q = f"{title} {loc}"
+                else:
+                    combined_q = title
+
                 queries.append({
-                    "q": title,
+                    "q": combined_q,
+                    "title": title,
                     "location": loc,
+                    "is_remote": is_remote,
                 })
-        return queries or [{"q": "Software Engineer", "location": "Remote"}]
+        return queries or [{"q": "Software Engineer remote", "title": "Software Engineer", "location": "Remote", "is_remote": True}]
 
     def fetch_raw_listings(self) -> List[Dict[str, Any]]:
-        """Fetch listings from SerpApi. If API key is not present or queries fail, returns realistic mock fixtures."""
+        """Fetch listings from SerpApi with exponential backoff and query resilience."""
         if not self.api_key:
             warning_msg = "SERPAPI_API_KEY not set. Using verified Google Jobs mock fixtures."
             logger.warning(f"[yellow]{warning_msg}[/yellow]")
@@ -50,10 +60,10 @@ class GoogleJobsScraper(BaseScraper):
         effective_timeout = max(35.0, float(self.settings.request_timeout))
 
         for q_spec in queries:
+            query_str = q_spec["q"]
             params = {
                 "engine": "google_jobs",
-                "q": q_spec["q"],
-                "location": q_spec["location"],
+                "q": query_str,
                 "api_key": self.api_key,
             }
             try:
@@ -63,20 +73,30 @@ class GoogleJobsScraper(BaseScraper):
                     params=params,
                     max_retries=self.settings.max_retries,
                     base_delay=2.0,
+                    backoff_factor=2.0,
                     timeout=effective_timeout,
-                    headers={"User-Agent": self.settings.user_agent}
+                    headers={"User-Agent": self.settings.user_agent},
+                    retry_statuses=(429, 500, 502, 503, 504)
                 )
                 if resp.status_code == 200:
                     data = resp.json()
                     results = data.get("jobs_results", [])
+                    logger.info(f"Google Jobs (SerpApi) returned {len(results)} listings for '{query_str}'.")
                     for item in results:
                         all_listings.append(item)
                 else:
-                    warning_msg = f"SerpApi query '{q_spec['q']}' returned HTTP {resp.status_code}"
+                    err_desc = ""
+                    try:
+                        err_json = resp.json()
+                        err_desc = err_json.get("error", resp.text)
+                    except Exception:
+                        err_desc = resp.text[:200]
+
+                    warning_msg = f"SerpApi query '{query_str}' returned HTTP {resp.status_code}: {err_desc}"
                     logger.error(warning_msg)
                     self.add_warning(warning_msg)
             except Exception as e:
-                warning_msg = f"Error querying SerpApi for '{q_spec['q']}': {e}"
+                warning_msg = f"Error querying SerpApi for '{query_str}': {e}"
                 logger.error(warning_msg)
                 self.add_warning(warning_msg)
                 continue

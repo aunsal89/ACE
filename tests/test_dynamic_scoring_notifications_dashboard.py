@@ -221,6 +221,59 @@ class TestDynamicScoringNotificationsDashboard(unittest.TestCase):
         self.assertIn("workplaceFilterPills", html_text)
         self.assertIn(self.tenant.name, html_text)
 
+    # --- 5. SCORER PYDANTIC SCHEMA & QUERY TESTS ---
+    def test_scorer_evaluate_pydantic_schema_compatibility(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        scorer = OpportunityScorer(config=self.config, tenant=self.tenant)
+
+        job = JobListing(
+            id="job_pydantic_01",
+            deduplication_hash="hash_pydantic_01",
+            source="test_source",
+            title="Senior Robotics Engineer",
+            company="Test Robotics Inc",
+            location="Istanbul, Turkey",
+            is_remote=False,
+            description_raw="Control and robotics engineering.",
+            status=JobStatus.DISCOVERED,
+            discovered_at=now,
+            updated_at=now,
+        )
+
+        mock_schema = OpportunityEvaluationSchema(
+            overall_score=88.5,
+            comp_score=90.0,
+            location_score=100.0,
+            tech_stack_score=85.0,
+            leadership_score=80.0,
+            fits_criteria=True,
+            reasoning="Strong technical alignment.",
+            matched_keywords=["Robotics", "Control"],
+            missing_keywords=[],
+            recommendation="QUEUE",
+            model_used="test_model",
+            track="GENERAL",
+        )
+
+        with patch.object(scorer.llm_client, "evaluate_fit", return_value=mock_schema):
+            eval_create = scorer.evaluate(job)
+            self.assertEqual(eval_create.overall_score, 88.5)
+            self.assertEqual(eval_create.recommendation, RecommendationType.QUEUE)
+            self.assertEqual(eval_create.track, "GENERAL")
+            self.assertEqual(eval_create.location_score, 100.0)
+
+    def test_serpapi_query_building(self):
+        gj_scraper = GoogleJobsScraper(self.config.sourcing, self.tenant)
+        queries = gj_scraper.build_search_queries()
+        self.assertGreaterEqual(len(queries), 1)
+        for q_spec in queries:
+            self.assertIn("q", q_spec)
+            self.assertTrue(len(q_spec["q"]) > 0)
+            # Location should be embedded cleanly into the query string
+            self.assertIn("Istanbul", q_spec["q"])
+
 
 if __name__ == "__main__":
     unittest.main()
+

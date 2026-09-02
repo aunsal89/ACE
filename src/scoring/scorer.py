@@ -32,24 +32,37 @@ class OpportunityScorer(BaseScorer):
 
     def evaluate(self, job: JobListing) -> ScoringEvaluationCreate:
         """Score a single job listing and return a ScoringEvaluationCreate model."""
-        eval_dict = self.llm_client.evaluate_fit(job)
-        eval_track = str(eval_dict.get("track") or getattr(eval_dict, "track", "GENERAL"))
+        res = self.llm_client.evaluate_fit(job)
+
+        if hasattr(res, "model_dump"):
+            d = res.model_dump()
+        elif isinstance(res, dict):
+            d = res
+        else:
+            d = {}
+
+        track_val = str(d.get("track") or "GENERAL")
+        rec_val = d.get("recommendation", "MANUAL_REVIEW")
+        try:
+            rec_enum = RecommendationType(rec_val)
+        except Exception:
+            rec_enum = RecommendationType.MANUAL_REVIEW
 
         return ScoringEvaluationCreate(
             job_id=job.id,
             tenant_id=self.tenant.tenant_id,
-            track=eval_track,
-            overall_score=float(eval_dict["overall_score"] if isinstance(eval_dict, dict) else eval_dict.overall_score),
-            comp_score=float(eval_dict.get("comp_score", 0) if isinstance(eval_dict, dict) else eval_dict.comp_score or 0),
-            location_score=float(eval_dict.get("location_score", 0) if isinstance(eval_dict, dict) else eval_dict.location_score or 0),
-            tech_stack_score=float(eval_dict.get("tech_stack_score", 0) if isinstance(eval_dict, dict) else eval_dict.tech_stack_score or 0),
-            leadership_score=float(eval_dict.get("leadership_score", 0) if isinstance(eval_dict, dict) else eval_dict.leadership_score or 0),
-            fits_criteria=bool(eval_dict["fits_criteria"] if isinstance(eval_dict, dict) else eval_dict.fits_criteria),
-            reasoning=str(eval_dict.get("reasoning", "") if isinstance(eval_dict, dict) else eval_dict.reasoning or ""),
-            matched_keywords=list(eval_dict.get("matched_keywords", []) if isinstance(eval_dict, dict) else eval_dict.matched_keywords or []),
-            missing_keywords=list(eval_dict.get("missing_keywords", []) if isinstance(eval_dict, dict) else eval_dict.missing_keywords or []),
-            recommendation=RecommendationType(eval_dict["recommendation"] if isinstance(eval_dict, dict) else eval_dict.recommendation),
-            model_used=str(eval_dict.get("model_used", "scoring_engine") if isinstance(eval_dict, dict) else eval_dict.model_used or "scoring_engine")
+            track=track_val,
+            overall_score=float(d.get("overall_score", 50.0)),
+            comp_score=float(d.get("comp_score") or 0.0),
+            location_score=float(d.get("location_score") or 0.0),
+            tech_stack_score=float(d.get("tech_stack_score") or 0.0),
+            leadership_score=float(d.get("leadership_score") or 0.0),
+            fits_criteria=bool(d.get("fits_criteria", True)),
+            reasoning=str(d.get("reasoning", "")),
+            matched_keywords=list(d.get("matched_keywords", [])),
+            missing_keywords=list(d.get("missing_keywords", [])),
+            recommendation=rec_enum,
+            model_used=str(d.get("model_used", "scoring_engine")),
         )
 
     def run_scoring_batch(self, job_id: Optional[str] = None, auto_queue: bool = True) -> List[ScoringEvaluation]:
