@@ -157,6 +157,52 @@ class TestDynamicScoringNotificationsDashboard(unittest.TestCase):
         self.assertEqual(eval_result.location_score, 100.0)
         self.assertGreaterEqual(eval_result.overall_score, 75.0)
 
+    def test_global_location_wildcard_scores_all_locations_and_remote(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+
+        # Set candidate location preference to Global
+        self.tenant.preferences.target_locations = ["Global"]
+        client = LLMScoringClient(settings=self.config.llm, tenant=self.tenant)
+
+        # 1. On-site job in Amsterdam
+        job_amsterdam = JobListing(
+            id="job_ams_01",
+            deduplication_hash="hash_ams_01",
+            source="targeted_companies",
+            title="Control Systems Engineer",
+            company="ASML",
+            location="Veldhoven / Amsterdam, Netherlands",
+            is_remote=False,
+            description_raw="Control systems architecture, MATLAB/Simulink, stateflow.",
+            status=JobStatus.DISCOVERED,
+            discovered_at=now,
+            updated_at=now,
+        )
+        eval_ams = client.evaluate_fit(job_amsterdam)
+        self.assertTrue(eval_ams.fits_criteria)
+        self.assertEqual(eval_ams.location_score, 100.0)
+        self.assertNotIn("Location Mismatch", eval_ams.reasoning)
+
+        # 2. Fully remote job
+        job_remote = JobListing(
+            id="job_rem_01",
+            deduplication_hash="hash_rem_01",
+            source="google_jobs",
+            title="Robotics Lead",
+            company="Global Robotics",
+            location="Remote",
+            is_remote=True,
+            description_raw="Robotics lead with nonlinear control and embedded C++.",
+            status=JobStatus.DISCOVERED,
+            discovered_at=now,
+            updated_at=now,
+        )
+        eval_rem = client.evaluate_fit(job_remote)
+        self.assertTrue(eval_rem.fits_criteria)
+        self.assertEqual(eval_rem.location_score, 100.0)
+        self.assertNotIn("Location Mismatch", eval_rem.reasoning)
+
     # --- 3. DYNAMIC SOURCING MOCKS TESTS ---
     def test_scrapers_dynamic_mock_generation_matches_candidate_profile(self):
         gj_scraper = GoogleJobsScraper(self.config.sourcing, self.tenant)
