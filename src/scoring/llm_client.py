@@ -175,10 +175,19 @@ class LLMScoringClient:
         """
         Deterministic verification of candidate location preferences.
         Returns (is_match: bool, score: float).
+        Supports universal wildcards ('Global', 'Worldwide', 'Anywhere', 'All') to accept all locations.
         """
         p = self.tenant.preferences
         target_locs = p.target_locations or []
         if not target_locs:
+            return True, 100.0
+
+        # Universal global wildcard: candidate is open to all locations worldwide (onsite, hybrid, remote)
+        is_global_candidate = any(
+            loc.lower().strip() in ["global", "worldwide", "anywhere", "all", "remote / anywhere", "any"]
+            for loc in target_locs
+        )
+        if is_global_candidate:
             return True, 100.0
 
         user_accepts_remote = any(
@@ -197,7 +206,7 @@ class LLMScoringClient:
         # Direct token / substring / city / country matching
         for target in target_locs:
             t_lower = target.lower().strip()
-            if t_lower in ["remote", "anywhere", "global"]:
+            if t_lower in ["remote"]:
                 continue
             parts = [part.strip() for part in t_lower.replace("/", ",").split(",") if part.strip()]
             for part in parts:
@@ -269,6 +278,7 @@ class LLMScoringClient:
     def _build_tenant_prompt_context(self) -> str:
         t = self.tenant
         p = t.preferences
+        is_global = any(loc.lower().strip() in ["global", "worldwide", "anywhere", "all", "remote / anywhere", "any"] for loc in (p.target_locations or []))
 
         lines = [
             f"Candidate Name: {t.name}",
@@ -285,14 +295,20 @@ class LLMScoringClient:
             cv_text = cv_path.read_text(encoding="utf-8", errors="replace")
             lines.append(f"\nCandidate Career History / CV:\n{cv_text[:3000]}")
 
+        loc_rule = (
+            "   Target Locations: Global / Worldwide (Candidate accepts all global locations worldwide, including onsite in any country, hybrid, and remote). Do NOT reject based on location."
+            if is_global
+            else f"   Target Locations: {', '.join(p.target_locations)}.\n"
+                 "   If the job is NOT in one of the candidate's target locations (and NOT remote if remote is accepted), "
+                 "   you MUST set location_score <= 25, set fits_criteria to false, and set recommendation to 'REJECT'."
+        )
+
         lines.append(
             "\nCRITICAL EVALUATION RULES:\n"
             "1. ROLE & DOMAIN ALIGNMENT:\n"
             "   Assess whether the job matches the candidate's target roles and technical domain.\n"
             "2. STRICT LOCATION COMPLIANCE:\n"
-            f"   Target Locations: {', '.join(p.target_locations)}.\n"
-            "   If the job is NOT in one of the candidate's target locations (and NOT remote if remote is accepted), "
-            "   you MUST set location_score <= 25, set fits_criteria to false, and set recommendation to 'REJECT'.\n"
+            f"{loc_rule}\n"
             "3. EXCLUSIONS:\n"
             f"   If the job matches any of the candidate's exclusions ({', '.join(p.exclusions)}), set recommendation to 'REJECT'."
         )
