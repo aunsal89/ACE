@@ -401,11 +401,59 @@ def cmd_tenant(args: argparse.Namespace) -> None:
             f"• Target Locations: {', '.join(p.target_locations)}\n"
             f"• Min Compensation: ${p.compensation.min_monthly_net_usd:,.0f}/mo {p.compensation.currency}\n"
             f"• Core Competencies: {', '.join(p.core_competencies) if p.core_competencies else 'N/A'}\n"
+            f"• Target Companies: {len(tenant.target_companies)} configured\n"
             f"• Exclusions: {', '.join(p.exclusions) if p.exclusions else 'None'}\n"
             f"• CV Markdown: {tenant.sources_of_truth.cv_markdown}",
             title=f"Tenant Profile: {tenant.name}",
             border_style="green"
         ))
+
+
+def cmd_companies(args: argparse.Namespace) -> None:
+    """Manage target companies and career portals for candidate tenant."""
+    config = load_engine_config()
+    tenant = _ensure_active_tenant(config, requested_id=getattr(args, "tenant_id", None))
+    mgr = TenantManager(config)
+
+    action = getattr(args, "companies_action", None) or "list"
+
+    if action == "list":
+        companies = mgr.load_target_companies(tenant.tenant_id)
+        if not companies:
+            console.print(f"[yellow]No target companies configured for tenant '{tenant.name}' ({tenant.tenant_id}).[/yellow]")
+            console.print("[dim]Add target companies with `python run.py companies add <name> <url>` or edit config/tenants/<tenant_id>/target_companies.yaml[/dim]")
+            return
+
+        table = Table(title=f"Target Companies & Career Portals ({tenant.name})", show_header=True, header_style="bold cyan")
+        table.add_column("Company", style="bold yellow")
+        table.add_column("Career Portal URL", style="blue")
+        table.add_column("Location", style="dim")
+        table.add_column("Keywords / Domain", style="dim")
+        table.add_column("Status", style="green")
+
+        for c in companies:
+            status_str = "[green]ENABLED[/green]" if c.enabled else "[dim red]DISABLED[/dim red]"
+            kws = ", ".join(c.keywords[:3]) if c.keywords else "All"
+            table.add_row(c.name, c.url, c.location or "Global / Remote", kws, status_str)
+
+        console.print(table)
+
+    elif action == "add":
+        name = args.name.strip()
+        url = args.url.strip()
+        location = getattr(args, "location", None)
+        raw_kws = getattr(args, "keywords", None)
+        kws = [k.strip() for k in raw_kws.split(",") if k.strip()] if raw_kws else []
+        new_c = mgr.add_target_company(tenant.tenant_id, name=name, url=url, location=location, keywords=kws)
+        console.print(f"[bold green]✓ Successfully added/updated target company:[/bold green] [yellow]{new_c.name}[/yellow] ([blue]{new_c.url}[/blue])")
+
+    elif action == "remove":
+        name = args.name.strip()
+        removed = mgr.remove_target_company(tenant.tenant_id, name=name)
+        if removed:
+            console.print(f"[bold green]✓ Removed target company:[/bold green] [yellow]{name}[/yellow] from tenant '{tenant.name}'.")
+        else:
+            console.print(f"[yellow]Company '{name}' not found in target list for tenant '{tenant.name}'.[/yellow]")
 
 
 def cmd_init_db(args: argparse.Namespace) -> None:
@@ -786,6 +834,27 @@ def main() -> None:
     p_ten_show = p_ten_sub.add_parser("show", help="Show tenant profile details")
     p_ten_show.add_argument("target_tenant_id", type=str, nargs="?", help="Tenant ID to display")
     p_ten_show.set_defaults(func=cmd_tenant)
+
+    # companies (manage target companies and career portals)
+    p_comp = subparsers.add_parser("companies", help="Manage target company career portals for candidate tenant")
+    p_comp_sub = p_comp.add_subparsers(dest="companies_action", help="Companies actions")
+
+    p_comp_list = p_comp_sub.add_parser("list", help="List configured target companies")
+    p_comp_list.add_argument("--tenant-id", type=str, help="Tenant ID")
+    p_comp_list.set_defaults(func=cmd_companies)
+
+    p_comp_add = p_comp_sub.add_parser("add", help="Add or update a target company career portal")
+    p_comp_add.add_argument("name", type=str, help="Company name (e.g., 'ASML', 'Baykar')")
+    p_comp_add.add_argument("url", type=str, help="Career portal URL (e.g., 'https://www.asml.com/en/careers')")
+    p_comp_add.add_argument("--location", type=str, help="Company headquarters or target location")
+    p_comp_add.add_argument("--keywords", type=str, help="Comma-separated focus keywords or tags")
+    p_comp_add.add_argument("--tenant-id", type=str, help="Tenant ID")
+    p_comp_add.set_defaults(func=cmd_companies)
+
+    p_comp_rem = p_comp_sub.add_parser("remove", help="Remove a target company from candidate target list")
+    p_comp_rem.add_argument("name", type=str, help="Company name to remove")
+    p_comp_rem.add_argument("--tenant-id", type=str, help="Tenant ID")
+    p_comp_rem.set_defaults(func=cmd_companies)
 
     # pipeline (full automated run)
     p_pipe = subparsers.add_parser("pipeline", help="Run full sourcing, scoring, and drafting pipeline")

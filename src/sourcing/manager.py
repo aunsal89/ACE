@@ -16,6 +16,7 @@ from src.sourcing.defense.baykar import BaykarScraper
 from src.sourcing.defense.aselsan import AselsanScraper
 from src.sourcing.defense.vizyoner_genc import VizyonerGencScraper
 from src.sourcing.defense.tusas_roketsan import TusasScraper, RoketsanScraper
+from src.sourcing.targeted_companies import TargetedCompanyScraper
 from src.utils.logger import console, logger
 
 
@@ -23,6 +24,7 @@ SCRAPER_REGISTRY: Dict[str, Type[BaseScraper]] = {
     "google_jobs": GoogleJobsScraper,
     "gmail_linkedin": GmailLinkedInScraper,
     "apify_linkedin": ApifyLinkedInScraper,
+    "targeted_companies": TargetedCompanyScraper,
     "baykar": BaykarScraper,
     "aselsan": AselsanScraper,
     "vizyoner_genc": VizyonerGencScraper,
