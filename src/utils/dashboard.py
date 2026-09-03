@@ -1980,7 +1980,7 @@ def _build_html_template(
         </div>
 
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px;">
-          <a href="https://www.linkedin.com/in/ahmet-halit-unsal/" target="_blank" class="donation-btn" style="background: #0a66c2; color: #fff; flex: 1;">Connect on LinkedIn</a>
+          <a href="https://www.linkedin.com/in/ahmethalitunsal/" target="_blank" class="donation-btn" style="background: #0a66c2; color: #fff; flex: 1;">Connect on LinkedIn</a>
           <a href="mailto:aunsal89@gmail.com" class="donation-btn" style="background: var(--text-main); color: #fff; flex: 1;">✉ Send Direct Email</a>
         </div>
       </div>

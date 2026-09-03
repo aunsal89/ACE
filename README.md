@@ -159,7 +159,7 @@ ACE automatically compiles an interactive HTML dashboard:
 **Ahmet Halit Ünsal**  
 *Senior Engineering Leader & Systems Architect*  
 - 🌐 **Portfolio & Case Studies:** [ahmethalitunsal.com](https://www.ahmethalitunsal.com)  
-- 🔗 **LinkedIn:** [linkedin.com/in/ahmet-halit-unsal](https://www.linkedin.com/in/ahmet-halit-unsal/)  
+- 🔗 **LinkedIn:** [linkedin.com/in/ahmethalitunsal](https://www.linkedin.com/in/ahmethalitunsal/)  
 - 🐙 **GitHub:** [github.com/aunsal89](https://github.com/aunsal89)  
 - ✉️ **Email:** [aunsal89@gmail.com](mailto:aunsal89@gmail.com)  
 
