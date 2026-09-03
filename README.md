@@ -177,9 +177,8 @@ If ACE has accelerated your career, saved you hours of application prep, or help
 - 💖 **GitHub Sponsors:** [sponsor/aunsal89](https://github.com/sponsors/aunsal89)
 - ☕ **Buy Me a Coffee:** [buymeacoffee.com/aunsal](https://buymeacoffee.com/aunsal)
 - 🪙 **Crypto Support:**
-  - **USDT (TRC-20):** `TMX4i6Q6g7dF8uT1a6z3K9vXyZ1W2M4nL5`
-  - **Bitcoin (BTC):** `bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh`
-  - **Ethereum (ETH):** `0x71C83f7fB008A2d3A8679A814343f8B51352eB4A`
+  - **Bitcoin (BTC):** `16bHeX3arxCoJS3eQxJS1NQavVBzvxJGrK`
+  - **Ethereum (ETH):** `0x5f356a8a456dbb953155d13b63b3cb17b464c305`
 
 ---
 
